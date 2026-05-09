@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Muzic</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <canvas id="dottedSurface" class="dotted-surface" aria-hidden="true"></canvas>
+    <main class="app-shell">
+      <section class="auth-view" id="authView">
+        <header class="mini-auth-nav" aria-label="Authentication navigation">
+          <div class="mini-logo" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <nav>
+            <a href="#library">Library</a>
+            <a href="#stats">Stats</a>
+            <a href="#taste">Taste Match</a>
+          </nav>
+          <div class="mini-auth-actions">
+            <button type="button" class="mini-login" data-mode="login">Login</button>
+            <button type="button" class="mini-signup" data-mode="signup">Signup</button>
+          </div>
+        </header>
+
+        <div class="auth-radial" aria-hidden="true"></div>
+        <div class="auth-content">
+          <div class="auth-copy">
+            <p class="eyebrow">Muzic access</p>
+            <h1 id="authHeadline">Welcome, to the future of music.</h1>
+            <p class="lede">Sign in, play your local library, collect web music links, and let listening data shape your music graph.</p>
+          </div>
+
+          <form id="authForm" class="auth-flow-card">
+            <div class="tabs" role="tablist" aria-label="Authentication mode">
+              <button type="button" class="tab active" data-mode="login">Login</button>
+              <button type="button" class="tab" data-mode="signup">Signup</button>
+            </div>
+
+            <div class="auth-step" id="authEmailStep">
+              <button class="provider-button" type="button">
+                <span>G</span>
+                <span>Continue with Google</span>
+              </button>
+              <div class="divider"><span>or</span></div>
+              <label>
+                Email
+                <div class="pill-input-action">
+                  <input name="email" type="email" autocomplete="email" placeholder="info@gmail.com" required />
+                  <button id="emailContinueButton" type="button" aria-label="Continue to password">→</button>
+                </div>
+              </label>
+            </div>
+
+            <div class="auth-step hidden" id="authDetailsStep">
+              <label class="signup-only hidden">
+                Name
+                <input name="name" autocomplete="name" placeholder="Your name" />
+              </label>
+              <label>
+                Password
+                <input name="password" type="password" autocomplete="current-password" minlength="8" placeholder="At least 8 characters" required />
+              </label>
+              <div class="auth-form-actions">
+                <button id="authBackButton" class="ghost auth-back" type="button">Back</button>
+                <button class="primary auth-submit" type="submit">Continue</button>
+              </div>
+            </div>
+
+            <p id="authMessage" class="message"></p>
+            <p class="auth-terms">By signing up, you agree to the MSA, Product Terms, Policies, Privacy Notice, and Cookie Notice.</p>
+          </form>
+        </div>
+      </section>
+
+      <section class="dashboard hidden" id="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Muzic</p>
+            <h2 id="welcomeTitle">Your library</h2>
+          </div>
+          <button id="logoutButton" class="ghost">Logout</button>
+        </header>
+
+        <section class="player-band">
+          <div class="music-player-card">
+            <audio id="audioPlayer" preload="metadata"></audio>
+            <div class="album-art-wrap" id="albumArtWrap">
+              <img
+                id="albumArt"
+                src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&auto=format&fit=crop&q=80"
+                alt="Album art"
+              />
+            </div>
+            <div class="song-copy">
+              <p class="eyebrow">Now playing</p>
+              <h3 id="nowPlayingTitle">Choose a song</h3>
+              <p id="nowPlayingArtist">No listening session is active.</p>
+            </div>
+            <p id="playerStatus" class="player-status">Upload a local audio file or use a direct audio URL for in-app playback.</p>
+            <div class="player-progress">
+              <span id="currentTimeLabel">00:00</span>
+              <input id="progressBar" class="progress-bar" type="range" min="0" max="100" value="0" />
+              <span id="durationLabel">00:00</span>
+            </div>
+            <div class="player-controls" aria-label="Music controls">
+              <button id="shuffleButton" class="icon-button muted" type="button" title="Shuffle" aria-label="Shuffle">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20l5.5-5.5"/><path d="M15 4l6 6"/><path d="M21 16v5h-5"/><path d="M15 20l6-6"/><path d="M4 4l17 17"/></svg>
+              </button>
+              <button id="previousButton" class="icon-button" type="button" title="Previous" aria-label="Previous">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 20L9 12l10-8v16Z"/><path d="M5 19V5"/></svg>
+              </button>
+              <button id="playPauseButton" class="play-button" type="button" title="Play" aria-label="Play">
+                <svg id="playIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7-11-7Z"/></svg>
+                <svg id="pauseIcon" class="hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8z"/><path d="M13 5h3v14h-3z"/></svg>
+              </button>
+              <button id="nextButton" class="icon-button" type="button" title="Next" aria-label="Next">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4l10 8-10 8V4Z"/><path d="M19 5v14"/></svg>
+              </button>
+              <button id="repeatButton" class="icon-button muted" type="button" title="Repeat" aria-label="Repeat">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="externalPlayer" class="external-player hidden">
+            <iframe id="externalFrame" title="External music player" allow="autoplay; encrypted-media"></iframe>
+            <div class="external-controls">
+              <a id="openExternalButton" class="primary external-link-button" href="#" target="_blank" rel="noreferrer">Open source</a>
+              <button id="startExternalButton" class="primary" type="button">Track listening</button>
+              <button id="stopExternalButton" class="ghost" type="button">Stop tracking</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <form id="trackForm" class="panel">
+            <h3>Add music</h3>
+            <div class="segmented">
+              <label><input type="radio" name="kind" value="local" checked /> Local upload</label>
+              <label><input type="radio" name="kind" value="external" /> External link</label>
+            </div>
+            <label>
+              Title
+              <input name="title" required />
+            </label>
+            <label>
+              Artist
+              <input name="artist" required />
+            </label>
+            <label>
+              Album
+              <input name="album" />
+            </label>
+            <label id="fileField">
+              Audio file
+              <input name="audioFile" type="file" accept="audio/*" />
+            </label>
+            <div id="externalFields" class="hidden">
+              <label>
+                Source
+                <select name="sourceType">
+                  <option value="youtube">YouTube</option>
+                  <option value="soundcloud">SoundCloud</option>
+                  <option value="web">Direct web audio</option>
+                </select>
+              </label>
+              <label>
+                URL
+                <input name="sourceUrl" type="url" placeholder="https://..." />
+              </label>
+              <p class="field-hint">Direct MP3/WAV/OGG links play inside Muzic. YouTube and SoundCloud depend on whether the site allows embedding.</p>
+            </div>
+            <button class="primary" type="submit">Save song</button>
+            <p id="trackMessage" class="message"></p>
+          </form>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h3>Library</h3>
+              <button id="refreshButton" class="ghost" type="button">Refresh</button>
+            </div>
+            <div id="trackList" class="track-list"></div>
+          </section>
+        </section>
+
+        <section class="stats-grid">
+          <article class="panel stat-card">
+            <p class="eyebrow">Playing time</p>
+            <strong id="totalTime">0s</strong>
+          </article>
+          <article class="panel">
+            <h3>Most listened artists</h3>
+            <ol id="artistStats" class="stat-list"></ol>
+          </article>
+          <article class="panel">
+            <h3>Similar listeners</h3>
+            <ol id="similarUsers" class="stat-list"></ol>
+          </article>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

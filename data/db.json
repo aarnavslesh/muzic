@@ -1,0 +1,118 @@
+{
+  "users": [
+    {
+      "id": "usr_396b92c1303847d9449ce1af",
+      "name": "Aarnav",
+      "email": "aarnav.1251070984@vit.edu",
+      "passwordHash": "af2f818110f2563c1d65718ecee62303:3e5b2345c99c71ae782f6c401ad0054346b5366e99efba3a845366ee64838b98",
+      "createdAt": "2026-05-09T22:05:32.491Z"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "trk_22b487d764194b1109ffbebe",
+      "title": "Instant Crush",
+      "artist": "Daft Punk",
+      "album": "Random Access Memories",
+      "kind": "local",
+      "sourceType": "upload",
+      "sourceUrl": null,
+      "playableUrl": "/uploads/audio_8955ee56cdb0731809ab6788.mp3",
+      "createdBy": "usr_396b92c1303847d9449ce1af",
+      "createdAt": "2026-05-09T22:27:01.052Z"
+    }
+  ],
+  "listens": [
+    {
+      "id": "lis_963c2b789614029594c86fe6",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:27:13.155Z"
+    },
+    {
+      "id": "lis_b12718a13e1fa0e62bf0602d",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:27:23.396Z"
+    },
+    {
+      "id": "lis_74883566ae16514a30922a3d",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:27:33.367Z"
+    },
+    {
+      "id": "lis_b0a0170921a9b342d573589d",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:27:43.276Z"
+    },
+    {
+      "id": "lis_ea914ffbb9db88cb43e0246f",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:27:53.213Z"
+    },
+    {
+      "id": "lis_dc33e870993d608e7213f138",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:28:03.379Z"
+    },
+    {
+      "id": "lis_e4032b8f3ac2e88a889ce69d",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:28:13.509Z"
+    },
+    {
+      "id": "lis_2a04c15eca10f424085dd0ec",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:28:23.365Z"
+    },
+    {
+      "id": "lis_cc27fc4b0ab7b980824a4313",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:28:33.248Z"
+    },
+    {
+      "id": "lis_ada39a938e4d48efb13494b6",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:28:43.218Z"
+    },
+    {
+      "id": "lis_690283ef7e59fdba57f4f4e7",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:28:53.172Z"
+    },
+    {
+      "id": "lis_79242a187053b63fd8614a5e",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-09T22:29:03.360Z"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "ses_f8e5b8780cc8f9509e06e0bc",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "expiresAt": 1778969378853
+    }
+  ]
+}

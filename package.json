@@ -1,0 +1,18 @@
+{
+  "name": "online-music-player-system",
+  "version": "1.0.0",
+  "description": "Backend-focused online music player prototype with auth, local/external tracks, listening stats, and similar taste matching.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "music",
+    "player",
+    "backend",
+    "node"
+  ],
+  "author": "",
+  "license": "MIT"
+}
