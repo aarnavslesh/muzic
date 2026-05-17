@@ -143,11 +143,11 @@
             </div>
             <label>
               Title
-              <input name="title" required />
+              <input name="title" />
             </label>
             <label>
               Artist
-              <input name="artist" required />
+              <input name="artist" />
             </label>
             <label>
               Album
@@ -163,6 +163,7 @@
                 <select name="sourceType">
                   <option value="youtube">YouTube</option>
                   <option value="soundcloud">SoundCloud</option>
+                  <option value="spotify">Spotify track or playlist</option>
                   <option value="web">Direct web audio</option>
                 </select>
               </label>
@@ -170,9 +171,9 @@
                 URL
                 <input name="sourceUrl" type="url" placeholder="https://..." />
               </label>
-              <p class="field-hint">Direct MP3/WAV/OGG links play inside Muzic. YouTube and SoundCloud depend on whether the site allows embedding.</p>
+              <p class="field-hint">Direct audio links play inside Muzic. Spotify track and playlist imports use Spotify API credentials when available.</p>
             </div>
-            <button class="primary" type="submit">Save song</button>
+            <button id="saveSongButton" class="primary" type="submit">Save song</button>
             <p id="trackMessage" class="message"></p>
           </form>
 
@@ -198,6 +199,45 @@
             <h3>Similar listeners</h3>
             <ol id="similarUsers" class="stat-list"></ol>
           </article>
+        </section>
+
+        <section class="panel engine-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Recommendation engine</p>
+              <h3>Taste orbit</h3>
+            </div>
+            <div class="engine-actions">
+              <button id="engineRotateButton" class="ghost" type="button">Pause orbit</button>
+              <button id="engineResetButton" class="ghost" type="button">Reset</button>
+            </div>
+          </div>
+          <div id="engineOrbit" class="engine-orbit" aria-live="polite">
+            <div class="engine-rings" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="engine-core">
+              <span class="engine-core-mark">M</span>
+              <strong>Muzic AI</strong>
+              <small>taste signal</small>
+            </div>
+            <div id="engineConnections" class="engine-connections" aria-hidden="true"></div>
+            <div id="engineNodes" class="engine-nodes"></div>
+            <p id="engineEmpty" class="message engine-empty">No recommendation graph yet. Add more music and listen for a bit so the engine can draw taste connections.</p>
+          </div>
+        </section>
+
+        <section class="panel recommendations-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">For you</p>
+              <h3>Recommended songs</h3>
+            </div>
+            <button id="refreshRecommendationsButton" class="ghost" type="button">Refresh</button>
+          </div>
+          <div id="recommendationList" class="recommendation-list"></div>
         </section>
       </section>
     </main>

@@ -2,6 +2,11 @@ const state = {
   authMode: "login",
   user: null,
   tracks: [],
+  recommendations: [],
+  activeRecommendationId: null,
+  engineRotation: 0,
+  engineAutoRotate: true,
+  engineTimer: null,
   currentTrack: null,
   lastAudioSeconds: 0,
   externalTimer: null,
@@ -21,8 +26,16 @@ const emailContinueButton = document.querySelector("#emailContinueButton");
 const authBackButton = document.querySelector("#authBackButton");
 const authHeadline = document.querySelector("#authHeadline");
 const trackForm = document.querySelector("#trackForm");
+const saveSongButton = document.querySelector("#saveSongButton");
 const trackMessage = document.querySelector("#trackMessage");
 const trackList = document.querySelector("#trackList");
+const recommendationList = document.querySelector("#recommendationList");
+const engineOrbit = document.querySelector("#engineOrbit");
+const engineNodes = document.querySelector("#engineNodes");
+const engineConnections = document.querySelector("#engineConnections");
+const engineEmpty = document.querySelector("#engineEmpty");
+const engineRotateButton = document.querySelector("#engineRotateButton");
+const engineResetButton = document.querySelector("#engineResetButton");
 const audioPlayer = document.querySelector("#audioPlayer");
 const externalPlayer = document.querySelector("#externalPlayer");
 const externalFrame = document.querySelector("#externalFrame");
@@ -142,7 +155,25 @@ async function api(path, options = {}) {
     },
     ...options
   });
-  const payload = await response.json();
+
+  const contentType = response.headers.get("content-type") || "";
+  const bodyText = await response.text();
+  let payload = {};
+
+  if (bodyText && contentType.includes("application/json")) {
+    try {
+      payload = JSON.parse(bodyText);
+    } catch {
+      throw new Error("The server returned broken JSON. Restart Muzic and try again.");
+    }
+  } else if (bodyText) {
+    const looksLikeHtml = bodyText.trim().startsWith("<!doctype") || bodyText.trim().startsWith("<html");
+    if (looksLikeHtml) {
+      throw new Error("The backend API is not responding. Stop the current server and restart from the Muzic folder.");
+    }
+    throw new Error(bodyText.slice(0, 160));
+  }
+
   if (!response.ok) throw new Error(payload.error || "Request failed.");
   return payload;
 }
@@ -204,10 +235,17 @@ async function loadInitialState() {
 }
 
 async function refreshDashboard() {
-  const [tracksResult, statsResult] = await Promise.all([api("/api/tracks"), api("/api/stats")]);
+  const [tracksResult, statsResult, recommendationsResult] = await Promise.all([
+    api("/api/tracks"),
+    api("/api/stats"),
+    api("/api/recommendations")
+  ]);
   state.tracks = tracksResult.tracks;
+  state.recommendations = recommendationsResult.recommendations || [];
   renderTracks();
   renderStats(statsResult);
+  renderRecommendations();
+  renderRecommendationEngine();
 }
 
 function renderTracks() {
@@ -234,6 +272,154 @@ function renderTracks() {
     item.querySelector(".remove-track-button").addEventListener("click", () => removeTrack(track));
     trackList.appendChild(item);
   }
+}
+
+function getRecommendationEnergy(recommendation) {
+  const score = Math.max(0, Number(recommendation.score) || 0);
+  if (!score) return 28;
+  return Math.max(18, Math.min(100, Math.round(30 + Math.log10(score + 1) * 32)));
+}
+
+function getRecommendationStatus(recommendation) {
+  const energy = getRecommendationEnergy(recommendation);
+  if (energy >= 72) return "locked-in";
+  if (energy >= 45) return "learning";
+  return "exploring";
+}
+
+function getRelatedRecommendationIds(recommendation) {
+  const track = recommendation.track;
+  return state.recommendations
+    .filter((candidate) => candidate.track.id !== track.id)
+    .filter((candidate) => candidate.track.artist === track.artist || candidate.track.kind === track.kind)
+    .slice(0, 3)
+    .map((candidate) => candidate.track.id);
+}
+
+function renderRecommendations() {
+  if (!recommendationList) return;
+
+  if (!state.recommendations.length) {
+    recommendationList.innerHTML = `<p class="message">No recommendations yet. Listen to a few songs or add more music so Muzic can learn your taste.</p>`;
+    return;
+  }
+
+  recommendationList.innerHTML = "";
+  for (const recommendation of state.recommendations) {
+    const track = recommendation.track;
+    const item = document.createElement("article");
+    item.className = "track-item recommendation-item";
+    item.innerHTML = `
+      <div>
+        <strong>${escapeHtml(track.title)}</strong>
+        <span>${escapeHtml(track.artist)}${track.album ? ` · ${escapeHtml(track.album)}` : ""} · ${track.kind}</span>
+        <p class="recommendation-reason">${escapeHtml(recommendation.reason || "Recommended from your listening data")}</p>
+      </div>
+      <div class="track-actions">
+        <button class="primary play-recommendation-button" type="button">Play</button>
+      </div>
+    `;
+    item.querySelector(".play-recommendation-button").addEventListener("click", () => playTrack(track));
+    recommendationList.appendChild(item);
+  }
+}
+
+function renderRecommendationEngine() {
+  if (!engineOrbit || !engineNodes || !engineConnections || !engineEmpty) return;
+
+  const recommendations = state.recommendations.length
+    ? state.recommendations.slice(0, 8)
+    : state.tracks.slice(0, 8).map((track, index) => ({
+        track,
+        score: Math.max(1, state.tracks.length - index),
+        reason: "Seed signal from your library. Listen more to unlock stronger recommendations."
+      }));
+  const hasEngineData = recommendations.length > 0;
+  engineOrbit.classList.toggle("has-engine-data", hasEngineData);
+  engineOrbit.classList.toggle("is-seeding", !state.recommendations.length && hasEngineData);
+  engineEmpty.classList.toggle("hidden", hasEngineData);
+  engineNodes.innerHTML = "";
+  engineConnections.innerHTML = "";
+
+  if (!hasEngineData) return;
+
+  const activeId = state.activeRecommendationId || recommendations[0].track.id;
+  const activeRecommendation = recommendations.find((recommendation) => recommendation.track.id === activeId) || recommendations[0];
+  const relatedIds = getRelatedRecommendationIds(activeRecommendation);
+  const total = recommendations.length;
+  const radius = engineOrbit.offsetWidth < 620 ? 135 : 205;
+
+  recommendations.forEach((recommendation, index) => {
+    const track = recommendation.track;
+    const angle = ((index / total) * 360 + state.engineRotation) % 360;
+    const radians = (angle * Math.PI) / 180;
+    const x = Math.cos(radians) * radius;
+    const y = Math.sin(radians) * radius;
+    const energy = getRecommendationEnergy(recommendation);
+    const isActive = track.id === activeRecommendation.track.id;
+    const isRelated = relatedIds.includes(track.id);
+
+    const connection = document.createElement("span");
+    connection.className = isActive || isRelated ? "engine-connection active" : "engine-connection";
+    connection.style.width = Math.max(60, radius + x / 2) + "px";
+    connection.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+    engineConnections.appendChild(connection);
+
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = `engine-node${isActive ? " active" : ""}${isRelated ? " related" : ""}`;
+    node.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+    node.style.setProperty("--energy", String(energy));
+    node.innerHTML = `
+      <span class="engine-node-glow"></span>
+      <span class="engine-node-icon">${escapeHtml(track.title.slice(0, 1).toUpperCase() || "M")}</span>
+      <span class="engine-node-label">${escapeHtml(track.title)}</span>
+    `;
+    node.addEventListener("click", () => {
+      state.activeRecommendationId = track.id;
+      state.engineAutoRotate = false;
+      updateEngineRotationControl();
+      renderRecommendationEngine();
+    });
+    engineNodes.appendChild(node);
+  });
+
+  const detail = document.createElement("article");
+  detail.className = "engine-detail";
+  detail.innerHTML = `
+    <div class="engine-detail-topline">
+      <span class="engine-badge">${escapeHtml(getRecommendationStatus(activeRecommendation))}</span>
+      <span class="engine-score">${getRecommendationEnergy(activeRecommendation)}% signal</span>
+    </div>
+    <h4>${escapeHtml(activeRecommendation.track.title)}</h4>
+    <p>${escapeHtml(activeRecommendation.track.artist)} · ${escapeHtml(activeRecommendation.track.kind)}</p>
+    <p class="engine-detail-reason">${escapeHtml(activeRecommendation.reason || "Recommended from your listening data")}</p>
+    <div class="engine-energy-bar"><span style="width: ${getRecommendationEnergy(activeRecommendation)}%"></span></div>
+    <div class="engine-detail-actions">
+      <button class="primary engine-play-button" type="button">Play</button>
+      <button class="ghost engine-focus-button" type="button">Focus links</button>
+    </div>
+  `;
+  detail.querySelector(".engine-play-button").addEventListener("click", () => playTrack(activeRecommendation.track));
+  detail.querySelector(".engine-focus-button").addEventListener("click", () => {
+    state.engineRotation = 270 - (recommendations.findIndex((item) => item.track.id === activeRecommendation.track.id) / total) * 360;
+    renderRecommendationEngine();
+  });
+  engineNodes.appendChild(detail);
+}
+
+function updateEngineRotationControl() {
+  if (!engineRotateButton) return;
+  engineRotateButton.textContent = state.engineAutoRotate ? "Pause orbit" : "Resume orbit";
+}
+
+function startRecommendationEngine() {
+  if (state.engineTimer) return;
+  state.engineTimer = window.setInterval(() => {
+    if (!state.engineAutoRotate || (!state.recommendations.length && !state.tracks.length)) return;
+    state.engineRotation = (state.engineRotation + 0.6) % 360;
+    renderRecommendationEngine();
+  }, 90);
 }
 
 async function removeTrack(track) {
@@ -351,6 +537,13 @@ function buildEmbedUrl(track) {
     }
     if (url.hostname.includes("soundcloud.com")) {
       return `https://w.soundcloud.com/player/?url=${encodeURIComponent(track.sourceUrl)}`;
+    }
+    if (url.hostname.includes("spotify.com")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      const typeIndex = parts.findIndex((part) => ["track", "playlist"].includes(part));
+      if (typeIndex !== -1 && parts[typeIndex + 1]) {
+        return `https://open.spotify.com/embed/${parts[typeIndex]}/${parts[typeIndex + 1]}`;
+      }
     }
   } catch {
     return track.sourceUrl;
@@ -482,6 +675,10 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   audioPlayer.removeAttribute("src");
   state.user = null;
   state.tracks = [];
+  state.recommendations = [];
+  state.activeRecommendationId = null;
+  renderRecommendations();
+  renderRecommendationEngine();
   state.currentTrack = null;
   albumArt.src = DEFAULT_ALBUM_ART;
   nowPlayingTitle.textContent = "Choose a song";
@@ -492,13 +689,24 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   renderApp();
 });
 
+function updateTrackFormMode() {
+  const kind = trackForm.kind.value;
+  const sourceType = trackForm.sourceType?.value;
+  const isLocal = kind === "local";
+  const isSpotify = kind === "external" && sourceType === "spotify";
+
+  document.querySelector("#fileField").classList.toggle("hidden", !isLocal);
+  document.querySelector("#externalFields").classList.toggle("hidden", kind !== "external");
+  trackForm.title.required = isLocal || (kind === "external" && !isSpotify);
+  trackForm.artist.required = isLocal || (kind === "external" && !isSpotify);
+  if (saveSongButton) saveSongButton.textContent = isSpotify ? "Import from Spotify" : "Save song";
+}
+
 trackForm.kind.forEach((input) => {
-  input.addEventListener("change", () => {
-    const kind = trackForm.kind.value;
-    document.querySelector("#fileField").classList.toggle("hidden", kind !== "local");
-    document.querySelector("#externalFields").classList.toggle("hidden", kind !== "external");
-  });
+  input.addEventListener("change", updateTrackFormMode);
 });
+
+trackForm.sourceType?.addEventListener("change", updateTrackFormMode);
 
 trackForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -514,20 +722,32 @@ trackForm.addEventListener("submit", async (event) => {
 
   try {
     if (kind === "local") {
+      if (!payload.title || !payload.artist) throw new Error("Title and artist are required.");
       const file = formData.get("audioFile");
       if (!file || !file.size) throw new Error("Choose an audio file.");
       payload.fileName = file.name;
       payload.mimeType = file.type;
       payload.dataBase64 = await fileToBase64(file);
+      await api("/api/tracks", { method: "POST", body: JSON.stringify(payload) });
+      showMessage(trackMessage, "Song saved.");
     } else {
       payload.sourceType = formData.get("sourceType");
       payload.sourceUrl = formData.get("sourceUrl");
+      if (payload.sourceType === "spotify") {
+        const result = await api("/api/spotify/import", { method: "POST", body: JSON.stringify(payload) });
+        const skipped = result.skippedCount ? ` ${result.skippedCount} duplicate(s) skipped.` : "";
+        const label = result.source?.type === "playlist" ? "playlist" : "track";
+        showMessage(trackMessage, `Imported ${result.imported.length} Spotify ${label} item(s).${skipped}`);
+      } else {
+        if (!payload.title || !payload.artist) throw new Error("Title and artist are required.");
+        await api("/api/tracks", { method: "POST", body: JSON.stringify(payload) });
+        showMessage(trackMessage, "Song saved.");
+      }
     }
-    await api("/api/tracks", { method: "POST", body: JSON.stringify(payload) });
     trackForm.reset();
     document.querySelector("#fileField").classList.remove("hidden");
     document.querySelector("#externalFields").classList.add("hidden");
-    showMessage(trackMessage, "Song saved.");
+    updateTrackFormMode();
     await refreshDashboard();
   } catch (error) {
     showMessage(trackMessage, error.message);
@@ -600,9 +820,25 @@ albumArt.addEventListener("error", () => {
 document.querySelector("#startExternalButton").addEventListener("click", startExternalTracking);
 document.querySelector("#stopExternalButton").addEventListener("click", stopExternalTracking);
 document.querySelector("#refreshButton").addEventListener("click", refreshDashboard);
+document.querySelector("#refreshRecommendationsButton").addEventListener("click", refreshDashboard);
+engineRotateButton?.addEventListener("click", () => {
+  state.engineAutoRotate = !state.engineAutoRotate;
+  updateEngineRotationControl();
+});
+engineResetButton?.addEventListener("click", () => {
+  state.activeRecommendationId = null;
+  state.engineRotation = 0;
+  state.engineAutoRotate = true;
+  updateEngineRotationControl();
+  renderRecommendationEngine();
+});
+window.addEventListener("resize", renderRecommendationEngine);
 
 setAuthStep("email");
+updateTrackFormMode();
 initDottedSurface();
+startRecommendationEngine();
+updateEngineRotationControl();
 updateProgressUi();
 updatePlayerUi();
 loadInitialState().catch((error) => showMessage(authMessage, error.message));

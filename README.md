@@ -4,7 +4,8 @@ A backend-focused music player prototype with:
 
 - Login and signup
 - Local audio uploads from the user's device
-- External music links for YouTube, SoundCloud, and direct audio URLs
+- External music links for YouTube, SoundCloud, Spotify, and direct audio URLs
+- Spotify track imports and full Spotify playlist imports
 - Listening data capture
 - Most-listened artist stats
 - Total playing time
@@ -26,10 +27,21 @@ Open `http://localhost:3000`.
 - `GET /api/me`
 - `GET /api/tracks`
 - `POST /api/tracks`
+- `POST /api/spotify/import`
 - `POST /api/listens`
 - `GET /api/stats`
 
 Data is stored locally in `data/db.json`; uploaded songs are stored in `public/uploads`.
+
+## Spotify imports
+
+Single Spotify track links can be saved with manually entered title/artist. Full playlist imports need Spotify API credentials:
+
+```bash
+SPOTIFY_CLIENT_ID=your_client_id SPOTIFY_CLIENT_SECRET=your_client_secret npm start
+```
+
+Create those credentials from a Spotify Developer app, then paste a Spotify track or playlist URL in Add music -> External link -> Spotify track or playlist. Spotify content plays through Spotify's embedded player; Muzic tracks listening time when you use Track listening.
 
 ## React / shadcn version
 
