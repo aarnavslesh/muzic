@@ -26,7 +26,6 @@ const authEmailStep = document.querySelector("#authEmailStep");
 const authDetailsStep = document.querySelector("#authDetailsStep");
 const emailContinueButton = document.querySelector("#emailContinueButton");
 const authBackButton = document.querySelector("#authBackButton");
-const authHeadline = document.querySelector("#authHeadline");
 const trackForm = document.querySelector("#trackForm");
 const saveSongButton = document.querySelector("#saveSongButton");
 const trackMessage = document.querySelector("#trackMessage");
@@ -57,6 +56,8 @@ const shuffleButton = document.querySelector("#shuffleButton");
 const repeatButton = document.querySelector("#repeatButton");
 const previousButton = document.querySelector("#previousButton");
 const nextButton = document.querySelector("#nextButton");
+const addToLibraryButton = document.querySelector("#addToLibraryButton");
+const tempTrackBadge = document.querySelector("#tempTrackBadge");
 
 const DEFAULT_ALBUM_ART = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&auto=format&fit=crop&q=80";
 
@@ -196,17 +197,32 @@ function constructYouTubeSearchUrl(title, artist) {
 }
 
 function getYouTubeCachedEmbed(title, artist) {
-  const key = `${title}|${artist}`;
-  return state.tempYouTubeEmbeds.get(key);
+  const entry = state.tempYouTubeEmbeds.get(`${title}|${artist}`);
+  return entry && entry.embedUrl ? entry : null;
 }
 
-function cacheYouTubeEmbed(title, artist, embedUrl) {
-  const key = `${title}|${artist}`;
-  state.tempYouTubeEmbeds.set(key, {
-    url: embedUrl,
+function cacheYouTubeEmbed(title, artist, watchUrl, embedUrl) {
+  state.tempYouTubeEmbeds.set(`${title}|${artist}`, {
+    url: watchUrl,
+    embedUrl,
     searchQuery: `${title} ${artist}`,
     cachedAt: Date.now()
   });
+}
+
+function isFrameableUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl, window.location.origin);
+    if (parsed.hostname.endsWith("youtube.com") || parsed.hostname.endsWith("youtu.be")) {
+      // YouTube only allows its own /embed/<id> player to be framed;
+      // results, watch, channel and home pages all send x-frame-options.
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      return parts[0] === "embed" && /^[A-Za-z0-9_-]{11}$/.test(parts[1] || "");
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function showMessage(element, message) {
@@ -222,7 +238,6 @@ function setAuthMode(mode) {
     item.classList.toggle("hidden", mode !== "signup");
   });
   authForm.password.autocomplete = mode === "login" ? "current-password" : "new-password";
-  authHeadline.textContent = mode === "login" ? "Welcome, to the future of music." : "Welcome, to the future of music.";
   setAuthStep("email");
   showMessage(authMessage, "");
 }
@@ -355,6 +370,25 @@ function renderRecommendations() {
   }
 }
 
+let engineGeometry = null;
+
+// Cheap rotation pass: updates transforms only. The full rebuild in
+// renderRecommendationEngine() used to run on every 90ms tick, replacing
+// every node/connection element (and its listeners) ~11x per second.
+function positionEngineNodes() {
+  if (!engineGeometry) return;
+  const { total, radius, items } = engineGeometry;
+  for (const item of items) {
+    const angle = ((item.index / total) * 360 + state.engineRotation) % 360;
+    const radians = (angle * Math.PI) / 180;
+    const x = Math.cos(radians) * radius;
+    const y = Math.sin(radians) * radius;
+    item.node.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+    item.connection.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+    item.connection.style.width = Math.max(60, radius + x / 2) + "px";
+  }
+}
+
 function renderRecommendationEngine() {
   if (!engineOrbit || !engineNodes || !engineConnections || !engineEmpty) return;
 
@@ -371,6 +405,7 @@ function renderRecommendationEngine() {
   engineEmpty.classList.toggle("hidden", hasEngineData);
   engineNodes.innerHTML = "";
   engineConnections.innerHTML = "";
+  engineGeometry = null;
 
   if (!hasEngineData) return;
 
@@ -379,27 +414,21 @@ function renderRecommendationEngine() {
   const relatedIds = getRelatedRecommendationIds(activeRecommendation);
   const total = recommendations.length;
   const radius = engineOrbit.offsetWidth < 620 ? 135 : 205;
+  const items = [];
 
   recommendations.forEach((recommendation, index) => {
     const track = recommendation.track;
-    const angle = ((index / total) * 360 + state.engineRotation) % 360;
-    const radians = (angle * Math.PI) / 180;
-    const x = Math.cos(radians) * radius;
-    const y = Math.sin(radians) * radius;
     const energy = getRecommendationEnergy(recommendation);
     const isActive = track.id === activeRecommendation.track.id;
     const isRelated = relatedIds.includes(track.id);
 
     const connection = document.createElement("span");
     connection.className = isActive || isRelated ? "engine-connection active" : "engine-connection";
-    connection.style.width = Math.max(60, radius + x / 2) + "px";
-    connection.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
     engineConnections.appendChild(connection);
 
     const node = document.createElement("button");
     node.type = "button";
     node.className = `engine-node${isActive ? " active" : ""}${isRelated ? " related" : ""}`;
-    node.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
     node.style.setProperty("--energy", String(energy));
     node.innerHTML = `
       <span class="engine-node-glow"></span>
@@ -413,7 +442,11 @@ function renderRecommendationEngine() {
       renderRecommendationEngine();
     });
     engineNodes.appendChild(node);
+    items.push({ node, connection, index });
   });
+
+  engineGeometry = { total, radius, items };
+  positionEngineNodes();
 
   const detail = document.createElement("article");
   detail.className = "engine-detail";
@@ -449,7 +482,7 @@ function startRecommendationEngine() {
   state.engineTimer = window.setInterval(() => {
     if (!state.engineAutoRotate || (!state.recommendations.length && !state.tracks.length)) return;
     state.engineRotation = (state.engineRotation + 0.6) % 360;
-    renderRecommendationEngine();
+    positionEngineNodes();
   }, 90);
 }
 
@@ -483,6 +516,10 @@ function updatePlayerUi() {
   const externalPlaying = Boolean(state.externalTimer);
   const audioPlaying = !audioPlayer.paused && !audioPlayer.ended;
   const isPlaying = externalPlaying || audioPlaying;
+  const isTemporary = Boolean(state.currentTrackTemporary && state.currentTrack);
+  const canImportTemp = Boolean(isTemporary && state.currentTrack.sourceUrl && state.currentTrack.playableUrl);
+  tempTrackBadge?.classList.toggle("hidden", !isTemporary);
+  addToLibraryButton?.classList.toggle("hidden", !canImportTemp);
   albumArtWrap.classList.toggle("playing", isPlaying);
   playIcon.classList.toggle("hidden", isPlaying);
   pauseIcon.classList.toggle("hidden", !isPlaying);
@@ -503,10 +540,36 @@ function updateProgressUi() {
   durationLabel.textContent = formatClock(duration);
 }
 
+function buildTrackArtDataUri(track) {
+  const label = `${track?.artist || ""} ${track?.title || ""}`.trim() || "Muzic";
+  let hash = 0;
+  for (let index = 0; index < label.length; index += 1) {
+    hash = (hash * 31 + label.charCodeAt(index)) | 0;
+  }
+  const seedValue = Math.abs(hash);
+  const hueA = seedValue % 360;
+  const hueB = (hueA + 35 + ((seedValue >> 3) % 70)) % 360;
+  const initials = escapeHtml(String(track?.title || "M").trim().slice(0, 2).toUpperCase() || "M");
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+    `<stop offset="0" stop-color="hsl(${hueA}, 62%, 46%)"/>` +
+    `<stop offset="1" stop-color="hsl(${hueB}, 68%, 28%)"/>` +
+    '</linearGradient></defs>' +
+    '<rect width="600" height="600" fill="url(#g)"/>' +
+    '<circle cx="300" cy="300" r="205" fill="rgba(0,0,0,0.20)"/>' +
+    '<circle cx="300" cy="300" r="54" fill="rgba(255,255,255,0.10)"/>' +
+    '<circle cx="300" cy="300" r="15" fill="rgba(255,255,255,0.35)"/>' +
+    `<text x="300" y="360" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="170" font-weight="700" fill="rgba(255,255,255,0.92)">${initials}</text>` +
+    '</svg>';
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 function setAlbumArtForTrack(track) {
-  const seed = encodeURIComponent(`${track.artist || "music"} ${track.title || "song"}`);
-  albumArt.src = `https://source.unsplash.com/600x600/?album,music,${seed}`;
-  albumArt.alt = `${track.title} album art`;
+  // Derived per-track art: always renders, no third-party image service,
+  // deterministic for the same title/artist. (source.unsplash.com was retired.)
+  albumArt.src = buildTrackArtDataUri(track);
+  albumArt.alt = `${track.title || "Track"} album art`;
 }
 
 function renderStats(stats) {
@@ -544,25 +607,31 @@ async function playRecommendation(recommendation) {
     // Fall through to YouTube search
   }
 
-  // Not found locally, create temporary YouTube embed
-  const cacheKey = `${track.title}|${track.artist}`;
-  let cachedEmbed = getYouTubeCachedEmbed(track.title, track.artist);
-
-  if (!cachedEmbed) {
-    const youtubeSearchUrl = constructYouTubeSearchUrl(track.title, track.artist);
-    const embedId = "temp_yt_" + Math.random().toString(36).slice(2, 9);
-    const embedUrl = youtubeSearchUrl;
-    cachedEmbed = { url: embedUrl, searchQuery: `${track.title} ${track.artist}` };
-    cacheYouTubeEmbed(track.title, track.artist, embedUrl);
+  // Not found locally: resolve an actual playable YouTube video for this track.
+  // A YouTube results/search page cannot be framed (x-frame-options: SAMEORIGIN),
+  // so we never put one in the iframe.
+  let resolved = getYouTubeCachedEmbed(track.title, track.artist);
+  if (!resolved) {
+    try {
+      const searchResult = await api(`/api/youtube/search?${new URLSearchParams({ q: `${track.title} ${track.artist}` })}`);
+      if (searchResult?.found && searchResult.watchUrl && searchResult.embedUrl) {
+        resolved = { url: searchResult.watchUrl, embedUrl: searchResult.embedUrl };
+        cacheYouTubeEmbed(track.title, track.artist, resolved.url, resolved.embedUrl);
+      }
+    } catch (error) {
+      console.error("YouTube lookup failed:", error);
+    }
   }
+
+  const searchUrl = constructYouTubeSearchUrl(track.title, track.artist);
 
   // Create temporary track object
   const tempTrack = {
     ...track,
     kind: "external",
     sourceType: "youtube",
-    sourceUrl: cachedEmbed.url,
-    playableUrl: cachedEmbed.url,
+    sourceUrl: resolved ? resolved.url : searchUrl,
+    playableUrl: resolved ? resolved.embedUrl : "",
     isTemporary: true
   };
 
@@ -581,9 +650,18 @@ async function playRecommendation(recommendation) {
   updateProgressUi();
   updatePlayerUi();
   externalPlayer.classList.remove("hidden");
-  externalFrame.src = cachedEmbed.url;
-  openExternalButton.href = cachedEmbed.url;
-  playerStatus.textContent = "This is a temporary YouTube embed. Click 'Add to Library' to import this song permanently.";
+  openExternalButton.href = resolved ? resolved.url : searchUrl;
+
+  if (resolved) {
+    externalFrame.classList.remove("hidden");
+    externalFrame.src = resolved.embedUrl;
+    playerStatus.textContent = "Temporary YouTube preview. Click 'Add to Library' to save this song permanently.";
+  } else {
+    // No playable video found: show a working path instead of a dead iframe.
+    externalFrame.removeAttribute("src");
+    externalFrame.classList.add("hidden");
+    playerStatus.textContent = "Could not find a playable video for this song inside Muzic. Use 'Open source' to listen on YouTube, then add the song from Add music.";
+  }
   updatePlayerUi();
 }
 
@@ -616,20 +694,38 @@ function playTrack(track) {
   updateProgressUi();
   updatePlayerUi();
   externalPlayer.classList.remove("hidden");
-  externalFrame.src = buildEmbedUrl(track) || track.sourceUrl;
   openExternalButton.href = track.sourceUrl;
-  playerStatus.textContent = "This source is hosted externally. If the embed says unavailable, open the source to play it and use Track listening for stats.";
+  const embedUrl = buildEmbedUrl(track);
+  if (embedUrl && isFrameableUrl(embedUrl)) {
+    externalFrame.classList.remove("hidden");
+    externalFrame.src = embedUrl;
+    playerStatus.textContent = "This source is hosted externally. If the embed says unavailable, open the source to play it and use Track listening for stats.";
+  } else {
+    // The link is a search/browse page that refuses to be framed.
+    externalFrame.removeAttribute("src");
+    externalFrame.classList.add("hidden");
+    playerStatus.textContent = "This link cannot play inside Muzic. Use 'Open source' to listen in a new tab and 'Track listening' to count the session.";
+  }
 }
 
 function buildEmbedUrl(track) {
   try {
     const url = new URL(track.sourceUrl);
+    const isVideoId = (value) => /^[A-Za-z0-9_-]{11}$/.test(value || "");
     if (url.hostname.includes("youtu.be")) {
-      return `https://www.youtube.com/embed/${url.pathname.slice(1)}`;
+      const videoId = url.pathname.slice(1);
+      return isVideoId(videoId) ? `https://www.youtube.com/embed/${videoId}` : track.sourceUrl;
     }
     if (url.hostname.includes("youtube.com")) {
-      const videoId = url.searchParams.get("v") || url.pathname.split("/").pop();
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : track.sourceUrl;
+      const videoId = url.searchParams.get("v");
+      if (isVideoId(videoId)) return `https://www.youtube.com/embed/${videoId}`;
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (["shorts", "embed", "live"].includes(parts[0]) && isVideoId(parts[1])) {
+        return `https://www.youtube.com/embed/${parts[1]}`;
+      }
+      // Not a video link (search page, channel, playlist...): keep the original
+      // URL so isFrameableUrl() can send the user down the 'Open source' path.
+      return track.sourceUrl;
     }
     if (url.hostname.includes("soundcloud.com")) {
       return `https://w.soundcloud.com/player/?url=${encodeURIComponent(track.sourceUrl)}`;
@@ -738,6 +834,10 @@ document.querySelectorAll(".tab, .mini-auth-actions button").forEach((tab) => {
 emailContinueButton.addEventListener("click", continueFromEmail);
 authBackButton.addEventListener("click", () => setAuthStep("email"));
 
+document.querySelector(".provider-button")?.addEventListener("click", () => {
+  showMessage(authMessage, "Google sign-in is not configured for Muzic yet. Continue with your email instead.");
+});
+
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   showMessage(authMessage, "");
@@ -776,6 +876,9 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   renderRecommendations();
   renderRecommendationEngine();
   state.currentTrack = null;
+  state.currentTrackTemporary = false;
+  externalFrame.removeAttribute("src");
+  externalFrame.classList.remove("hidden");
   albumArt.src = DEFAULT_ALBUM_ART;
   nowPlayingTitle.textContent = "Choose a song";
   nowPlayingArtist.textContent = "No listening session is active.";
@@ -911,6 +1014,37 @@ nextButton.addEventListener("click", () => playRelativeTrack(1));
 
 albumArt.addEventListener("error", () => {
   albumArt.src = DEFAULT_ALBUM_ART;
+});
+
+addToLibraryButton?.addEventListener("click", async () => {
+  if (!state.currentTrackTemporary || !state.currentTrack) return;
+  const temp = state.currentTrack;
+  addToLibraryButton.disabled = true;
+  addToLibraryButton.textContent = "Adding...";
+  try {
+    const result = await api("/api/tracks", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "external",
+        sourceType: temp.sourceType || "youtube",
+        title: temp.title,
+        artist: temp.artist,
+        album: temp.album,
+        sourceUrl: temp.sourceUrl
+      })
+    });
+    state.currentTrack = { ...result.track, isTemporary: false };
+    state.currentTrackTemporary = false;
+    openExternalButton.href = result.track.sourceUrl;
+    playerStatus.textContent = "Added to your library. This song is saved permanently now.";
+    await refreshDashboard();
+    updatePlayerUi();
+  } catch (error) {
+    playerStatus.textContent = `Could not add this song: ${error.message}`;
+  } finally {
+    addToLibraryButton.disabled = false;
+    addToLibraryButton.textContent = "Add to Library";
+  }
 });
 
 document.querySelector("#startExternalButton").addEventListener("click", startExternalTracking);

@@ -298,6 +298,8 @@ final class MuzicModel: ObservableObject {
     private var listenTask: Task<Void, Never>?
     private var externalTask: Task<Void, Never>?
     private var lastLoggedSecond = 0
+    private var endObserver: NSObjectProtocol?
+    private var listensSinceDashboardRefresh = 0
 
     var isAuthenticated: Bool { user != nil }
 
@@ -387,6 +389,7 @@ final class MuzicModel: ObservableObject {
         }
 
         player = AVPlayer(url: url)
+        observeTrackEnd()
         player.play()
         isPlaying = true
         startNativeListenLoop()
@@ -439,6 +442,38 @@ final class MuzicModel: ObservableObject {
         listenTask?.cancel()
         listenTask = nil
         stopExternalTracking()
+        removeTrackEndObserver()
+    }
+
+    private func removeTrackEndObserver() {
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+    }
+
+    private func observeTrackEnd() {
+        removeTrackEndObserver()
+        guard let item = player.currentItem else { return }
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleTrackEnded()
+            }
+        }
+    }
+
+    private func handleTrackEnded() {
+        // Without this the play button kept showing "Pause" while the player
+        // was already silent at the end of a track.
+        isPlaying = false
+        listenTask?.cancel()
+        listenTask = nil
+        lastLoggedSecond = 0
+        statusMessage = "\(nowPlaying?.title ?? "Track") finished. Choose another song."
     }
 
     private func authenticate(path: String, request: AuthRequest) async {
@@ -485,7 +520,17 @@ final class MuzicModel: ObservableObject {
         guard let nowPlaying, seconds > 0 else { return }
         do {
             let _: OkResponse = try await api.post("/api/listens", body: ListenRequest(trackId: nowPlaying.id, secondsPlayed: seconds))
-            try await refreshDashboard()
+            // Debounced sync: the stats panel (what ticks up while listening)
+            // refreshes on every listen tick, but the full
+            // tracks+stats+recommendations triple only every 4th tick instead
+            // of every 10 seconds.
+            listensSinceDashboardRefresh += 1
+            if listensSinceDashboardRefresh >= 4 {
+                listensSinceDashboardRefresh = 0
+                try await refreshDashboard()
+            } else {
+                stats = try await api.get("/api/stats")
+            }
         } catch {
             errorMessage = error.localizedDescription
         }

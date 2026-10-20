@@ -36,8 +36,31 @@ function ensureStorage() {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-const readDb = dbModule.readDb;
-const writeDb = dbModule.writeDb;
+const {
+  insertUser,
+  findUserByEmail,
+  insertSession,
+  deleteExpiredSessions,
+  deleteSessionByToken,
+  getSessionUser,
+  insertTrack,
+  getTrackById,
+  getTrackExists,
+  getTrackSourceUrls,
+  allTracks,
+  allUsers,
+  allListens,
+  deleteTrack,
+  deleteListensByTrack,
+  insertListen,
+  insertPlaylist,
+  getPlaylistsByUser,
+  getPlaylistById,
+  playlistNameExists,
+  updatePlaylistTracks,
+  deletePlaylistById,
+  removeTrackFromPlaylists
+} = dbModule;
 
 function makeId(prefix) {
   return `${prefix}_${crypto.randomBytes(12).toString("hex")}`;
@@ -105,17 +128,14 @@ function publicUser(user) {
   };
 }
 
-function getCurrentUser(req, db) {
+async function getCurrentUser(req) {
   const token = parseCookies(req).session;
   if (!token) return null;
-  const now = Date.now();
-  const session = db.sessions.find((item) => item.token === token && item.expiresAt > now);
-  if (!session) return null;
-  return db.users.find((user) => user.id === session.userId) || null;
+  return getSessionUser(token);
 }
 
-function requireUser(req, res, db) {
-  const user = getCurrentUser(req, db);
+async function requireUser(req, res) {
+  const user = await getCurrentUser(req);
   if (!user) {
     sendError(res, 401, "You must be logged in.");
     return null;
@@ -171,8 +191,7 @@ function serializeTrack(track) {
   };
 }
 
-function serializePlaylist(playlist, db) {
-  const tracksById = new Map(db.tracks.map((track) => [track.id, track]));
+function serializePlaylist(playlist, tracksById) {
   const tracks = (playlist.trackIds || [])
     .map((trackId) => tracksById.get(trackId))
     .filter(Boolean)
@@ -263,16 +282,79 @@ function formatDuration(totalSeconds) {
 function getYouTubeEmbedUrl(rawUrl) {
   try {
     const parsed = new URL(rawUrl);
+    const isVideoId = (value) => Boolean(value) && /^[A-Za-z0-9_-]{11}$/.test(value);
     let id = "";
     if (parsed.hostname.includes("youtu.be")) {
       id = parsed.pathname.slice(1);
     } else if (parsed.hostname.includes("youtube.com")) {
-      id = parsed.searchParams.get("v") || parsed.pathname.split("/").pop();
+      id = parsed.searchParams.get("v") || "";
+      if (!id) {
+        const parts = parsed.pathname.split("/").filter(Boolean);
+        if (["shorts", "embed", "live"].includes(parts[0])) id = parts[1] || "";
+      }
     }
-    return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : null;
+    return isVideoId(id) ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : null;
   } catch {
     return null;
   }
+}
+
+function isYouTubeSearchUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (!parsed.hostname.includes("youtube.com")) return false;
+    if (parsed.pathname === "/results" || parsed.pathname === "/") return true;
+    return parsed.pathname === "/watch" && !parsed.searchParams.get("v");
+  } catch {
+    return false;
+  }
+}
+
+const youtubeSearchCache = new Map();
+
+/**
+ * Resolve a free-text query (e.g. "Title Artist") to a playable YouTube video.
+ * Scrapes the public results page so no API key is required. Returns
+ * { found: false } when nothing playable is found so callers can fall back.
+ */
+async function resolveYouTubeVideo(query) {
+  const cacheKey = query.toLowerCase();
+  const cached = youtubeSearchCache.get(cacheKey);
+  if (cached) return cached;
+
+  let result = { found: false };
+  try {
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const response = await fetch(searchUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (response.ok) {
+      const html = await response.text();
+      const match = html.match(/"videoRenderer":\{"videoId":"([\w-]{11})"/) || html.match(/"videoId":"([\w-]{11})"/);
+      if (match) {
+        result = {
+          found: true,
+          videoId: match[1],
+          watchUrl: `https://www.youtube.com/watch?v=${match[1]}`,
+          embedUrl: `https://www.youtube.com/embed/${match[1]}`
+        };
+      }
+    }
+  } catch {
+    result = { found: false };
+  }
+
+  youtubeSearchCache.set(cacheKey, result);
+  if (youtubeSearchCache.size > 200) {
+    youtubeSearchCache.delete(youtubeSearchCache.keys().next().value);
+  }
+  return result;
 }
 
 function getSoundCloudEmbedUrl(rawUrl) {
@@ -359,11 +441,11 @@ function spotifyTrackToMuzicTrack(spotifyTrack, userId) {
   };
 }
 
-async function importSpotifyTracks(db, user, sourceUrl, fallback = {}) {
+async function importSpotifyTracks(user, sourceUrl, fallback = {}, existingSourceUrls = []) {
   const spotify = parseSpotifyUrl(sourceUrl);
   if (!spotify) throw new Error("Paste a valid Spotify track or playlist URL.");
 
-  const existingUrls = new Set(db.tracks.map((track) => track.sourceUrl).filter(Boolean));
+  const existingUrls = new Set(existingSourceUrls);
   const imported = [];
   const skipped = [];
 
@@ -390,7 +472,6 @@ async function importSpotifyTracks(db, user, sourceUrl, fallback = {}) {
     } else {
       skipped.push(openUrl);
     }
-    db.tracks.unshift(...imported);
     return { imported, skipped, source: { type: spotify.type, id: spotify.id } };
   }
 
@@ -418,7 +499,6 @@ async function importSpotifyTracks(db, user, sourceUrl, fallback = {}) {
     }
   }
 
-  db.tracks.unshift(...imported);
   return { imported, skipped, source: { type: spotify.type, id: spotify.id } };
 }
 
@@ -749,11 +829,11 @@ function searchLocalFiles(title, artist) {
 }
 
 async function handleApiRequest(req, res, url) {
-  const db = readDb();
   const pathname = url.pathname;
 
   if (req.method === "GET" && pathname === "/api/me") {
-    sendJson(res, 200, { user: getCurrentUser(req, db) ? publicUser(getCurrentUser(req, db)) : null });
+    const user = await getCurrentUser(req);
+    sendJson(res, 200, { user: user ? publicUser(user) : null });
     return true;
   }
 
@@ -766,7 +846,7 @@ async function handleApiRequest(req, res, url) {
     if (!name) return sendApiError(res, 400, "Name is required.");
     if (!isValidEmail(email)) return sendApiError(res, 400, "Enter a valid email address.");
     if (password.length < 8) return sendApiError(res, 400, "Password must be at least 8 characters.");
-    if (db.users.some((user) => user.email.toLowerCase() === email)) {
+    if (await findUserByEmail(email)) {
       return sendApiError(res, 409, "An account already exists for that email.");
     }
 
@@ -778,9 +858,8 @@ async function handleApiRequest(req, res, url) {
       createdAt: new Date().toISOString()
     };
     const token = makeId("sess");
-    db.users.push(user);
-    db.sessions.push({ token, userId: user.id, expiresAt: Date.now() + SESSION_TTL_MS });
-    writeDb(db);
+    await insertUser(user);
+    await insertSession({ token, userId: user.id, expiresAt: Date.now() + SESSION_TTL_MS });
     setSessionCookie(res, token);
     sendJson(res, 201, { user: publicUser(user) });
     return true;
@@ -790,16 +869,15 @@ async function handleApiRequest(req, res, url) {
     const body = await readJsonBody(req);
     const email = normalizeText(body.email).toLowerCase();
     const password = String(body.password || "");
-    const user = db.users.find((item) => item.email.toLowerCase() === email);
+    const user = await findUserByEmail(email);
 
     if (!user || !verifyPassword(password, user.passwordHash)) {
       return sendApiError(res, 401, "Invalid email or password.");
     }
 
     const token = makeId("sess");
-    db.sessions = db.sessions.filter((session) => session.expiresAt > Date.now());
-    db.sessions.push({ token, userId: user.id, expiresAt: Date.now() + SESSION_TTL_MS });
-    writeDb(db);
+    await deleteExpiredSessions();
+    await insertSession({ token, userId: user.id, expiresAt: Date.now() + SESSION_TTL_MS });
     setSessionCookie(res, token);
     sendJson(res, 200, { user: publicUser(user) });
     return true;
@@ -807,31 +885,30 @@ async function handleApiRequest(req, res, url) {
 
   if (req.method === "POST" && pathname === "/api/auth/logout") {
     const token = parseCookies(req).session;
-    if (token) db.sessions = db.sessions.filter((session) => session.token !== token);
-    writeDb(db);
+    if (token) await deleteSessionByToken(token);
     clearSessionCookie(res);
     sendJson(res, 200, { ok: true });
     return true;
   }
 
   if (req.method === "GET" && pathname === "/api/playlists") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
-    const playlists = db.playlists
-      .filter((playlist) => playlist.createdBy === user.id)
-      .map((playlist) => serializePlaylist(playlist, db));
+    const playlistRows = await getPlaylistsByUser(user.id);
+    const tracksById = new Map((await allTracks()).map((track) => [track.id, track]));
+    const playlists = playlistRows.map((playlist) => serializePlaylist(playlist, tracksById));
     sendJson(res, 200, { playlists });
     return true;
   }
 
   if (req.method === "POST" && pathname === "/api/playlists") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const body = await readJsonBody(req);
     const name = normalizeText(body.name);
     if (!name) return sendApiError(res, 400, "Playlist name is required.");
-    if (db.playlists.some((playlist) => playlist.createdBy === user.id && playlist.name.toLowerCase() === name.toLowerCase())) {
+    if (await playlistNameExists(user.id, name)) {
       return sendApiError(res, 409, "You already have a playlist with that name.");
     }
 
@@ -844,61 +921,61 @@ async function handleApiRequest(req, res, url) {
       createdAt: now,
       updatedAt: now
     };
-    db.playlists.unshift(playlist);
-    writeDb(db);
-    sendJson(res, 201, { playlist: serializePlaylist(playlist, db) });
+    await insertPlaylist(playlist);
+    const tracksById = new Map((await allTracks()).map((track) => [track.id, track]));
+    sendJson(res, 201, { playlist: serializePlaylist(playlist, tracksById) });
     return true;
   }
 
   const playlistTrackMatch = pathname.match(/^\/api\/playlists\/([^/]+)\/tracks(?:\/([^/]+))?$/);
   if ((req.method === "POST" || req.method === "DELETE") && playlistTrackMatch) {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const playlistId = decodeURIComponent(playlistTrackMatch[1]);
-    const playlist = db.playlists.find((item) => item.id === playlistId && item.createdBy === user.id);
-    if (!playlist) return sendApiError(res, 404, "Playlist not found.");
+    const playlist = await getPlaylistById(playlistId);
+    if (!playlist || playlist.createdBy !== user.id) return sendApiError(res, 404, "Playlist not found.");
 
     let trackId = playlistTrackMatch[2] ? decodeURIComponent(playlistTrackMatch[2]) : "";
     if (req.method === "POST") {
       const body = await readJsonBody(req);
       trackId = normalizeText(body.trackId);
-      if (!db.tracks.some((track) => track.id === trackId)) return sendApiError(res, 404, "Song not found.");
+      if (!(await getTrackExists(trackId))) return sendApiError(res, 404, "Song not found.");
       if (!(playlist.trackIds || []).includes(trackId)) playlist.trackIds = [...(playlist.trackIds || []), trackId];
     } else {
       playlist.trackIds = (playlist.trackIds || []).filter((id) => id !== trackId);
     }
 
     playlist.updatedAt = new Date().toISOString();
-    writeDb(db);
-    sendJson(res, 200, { playlist: serializePlaylist(playlist, db) });
+    await updatePlaylistTracks(playlist.id, playlist.trackIds, playlist.updatedAt);
+    const tracksById = new Map((await allTracks()).map((track) => [track.id, track]));
+    sendJson(res, 200, { playlist: serializePlaylist(playlist, tracksById) });
     return true;
   }
 
   const playlistMatch = pathname.match(/^\/api\/playlists\/([^/]+)$/);
   if (req.method === "DELETE" && playlistMatch) {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const playlistId = decodeURIComponent(playlistMatch[1]);
-    const playlist = db.playlists.find((item) => item.id === playlistId && item.createdBy === user.id);
-    if (!playlist) return sendApiError(res, 404, "Playlist not found.");
+    const playlist = await getPlaylistById(playlistId);
+    if (!playlist || playlist.createdBy !== user.id) return sendApiError(res, 404, "Playlist not found.");
 
-    db.playlists = db.playlists.filter((item) => item.id !== playlistId);
-    writeDb(db);
+    await deletePlaylistById(playlistId);
     sendJson(res, 200, { ok: true });
     return true;
   }
 
   if (req.method === "GET" && pathname === "/api/tracks") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
-    sendJson(res, 200, { tracks: db.tracks.map(serializeTrack) });
+    sendJson(res, 200, { tracks: (await allTracks()).map(serializeTrack) });
     return true;
   }
 
   if (req.method === "POST" && pathname === "/api/spotify/import") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const body = await readJsonBody(req);
@@ -907,8 +984,10 @@ async function handleApiRequest(req, res, url) {
       return sendApiError(res, 400, "Paste a valid Spotify track or playlist URL.");
     }
 
-    const result = await importSpotifyTracks(db, user, sourceUrl, body);
-    writeDb(db);
+    const result = await importSpotifyTracks(user, sourceUrl, body, await getTrackSourceUrls());
+    for (const importedTrack of result.imported) {
+      await insertTrack(importedTrack);
+    }
     sendJson(res, 201, {
       imported: result.imported.map(serializeTrack),
       skippedCount: result.skipped.length,
@@ -918,7 +997,7 @@ async function handleApiRequest(req, res, url) {
   }
 
   if (req.method === "POST" && pathname === "/api/tracks") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const body = await readJsonBody(req);
@@ -941,6 +1020,9 @@ async function handleApiRequest(req, res, url) {
       sourceType = normalizeText(body.sourceType) || "web";
       sourceUrl = normalizeText(body.sourceUrl);
       if (!validateExternalUrl(sourceUrl)) return sendApiError(res, 400, "Enter a valid external URL.");
+      if (isYouTubeSearchUrl(sourceUrl)) {
+        return sendApiError(res, 400, "Paste a YouTube video link (watch?v=...), not a search page. Search pages cannot be embedded or played.");
+      }
       playableUrl = getYouTubeEmbedUrl(sourceUrl) || getSoundCloudEmbedUrl(sourceUrl) || getSpotifyEmbedUrl(sourceUrl) || sourceUrl;
     }
 
@@ -957,73 +1039,68 @@ async function handleApiRequest(req, res, url) {
       createdAt: new Date().toISOString()
     };
 
-    db.tracks.unshift(track);
-    writeDb(db);
+    await insertTrack(track);
     sendJson(res, 201, { track: serializeTrack(track) });
     return true;
   }
 
   const trackMatch = pathname.match(/^\/api\/tracks\/([^/]+)$/);
   if (req.method === "DELETE" && trackMatch) {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const trackId = decodeURIComponent(trackMatch[1]);
-    const track = db.tracks.find((item) => item.id === trackId);
+    const track = await getTrackById(trackId);
     if (!track) return sendApiError(res, 404, "Song not found.");
     if (track.createdBy !== user.id) return sendApiError(res, 403, "You can only remove songs you added.");
 
     deleteLocalTrackFile(track);
-    db.tracks = db.tracks.filter((item) => item.id !== trackId);
-    db.listens = db.listens.filter((listen) => listen.trackId !== trackId);
-    db.playlists = db.playlists.map((playlist) => ({
-      ...playlist,
-      trackIds: (playlist.trackIds || []).filter((id) => id !== trackId),
-      updatedAt: new Date().toISOString()
-    }));
-    writeDb(db);
+    await deleteListensByTrack(trackId);
+    await deleteTrack(trackId);
+    await removeTrackFromPlaylists(trackId);
     sendJson(res, 200, { ok: true });
     return true;
   }
 
   if (req.method === "POST" && pathname === "/api/listens") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const body = await readJsonBody(req);
     const trackId = normalizeText(body.trackId);
     const secondsPlayed = Math.max(0, Math.min(24 * 60 * 60, Math.floor(Number(body.secondsPlayed) || 0)));
-    if (!trackId || !db.tracks.some((track) => track.id === trackId)) return sendApiError(res, 404, "Song not found.");
+    if (!trackId || !(await getTrackExists(trackId))) return sendApiError(res, 404, "Song not found.");
     if (secondsPlayed <= 0) return sendApiError(res, 400, "Listening time must be greater than zero.");
 
-    db.listens.push({
+    await insertListen({
       id: makeId("lis"),
       userId: user.id,
       trackId,
       secondsPlayed,
       listenedAt: new Date().toISOString()
     });
-    writeDb(db);
     sendJson(res, 201, { ok: true });
     return true;
   }
 
   if (req.method === "GET" && pathname === "/api/stats") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
+    const db = { users: await allUsers(), tracks: await allTracks(), listens: await allListens() };
     sendJson(res, 200, buildStats(db, user));
     return true;
   }
 
   if (req.method === "GET" && pathname === "/api/recommendations") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
+    const db = { users: await allUsers(), tracks: await allTracks(), listens: await allListens() };
     sendJson(res, 200, { recommendations: getRecommendations(db, user) });
     return true;
   }
 
   if (req.method === "GET" && pathname === "/api/search-local") {
-    const user = requireUser(req, res, db);
+    const user = await requireUser(req, res);
     if (!user) return true;
 
     const title = normalizeText(url.searchParams.get("title"));
@@ -1031,13 +1108,24 @@ async function handleApiRequest(req, res, url) {
 
     if (!title) return sendApiError(res, 400, "Title is required.");
 
-    const muzicResult = searchMuzicLibrary(db, title, artist);
+    const muzicResult = searchMuzicLibrary({ tracks: await allTracks() }, title, artist);
     if (muzicResult.found) {
       return sendJson(res, 200, muzicResult);
     }
 
     const localResult = searchLocalFiles(title, artist);
     return sendJson(res, 200, localResult);
+  }
+
+  if (req.method === "GET" && pathname === "/api/youtube/search") {
+    const user = await requireUser(req, res);
+    if (!user) return true;
+
+    const query = normalizeText(url.searchParams.get("q"));
+    if (!query) return sendApiError(res, 400, "Search query is required.");
+
+    sendJson(res, 200, await resolveYouTubeVideo(query));
+    return true;
   }
 
   if (pathname.startsWith("/api/")) {

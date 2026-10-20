@@ -203,6 +203,169 @@ async function writeDb(dbData) {
   });
 }
 
+function parsePlaylistRow(row) {
+  if (!row) return null;
+  let trackIds = [];
+  try {
+    trackIds = row.trackIds ? JSON.parse(row.trackIds) : [];
+  } catch {
+    trackIds = [];
+  }
+  return { ...row, trackIds };
+}
+
+async function findUserByEmail(email) {
+  await initDb();
+  return get("SELECT * FROM users WHERE email = ?", [String(email || "").toLowerCase()]);
+}
+
+async function insertUser(user) {
+  await initDb();
+  return run(
+    "INSERT INTO users (id, name, email, passwordHash, createdAt) VALUES (?, ?, ?, ?, ?)",
+    [user.id, user.name, user.email, user.passwordHash, user.createdAt]
+  );
+}
+
+async function insertSession(session) {
+  await initDb();
+  return run(
+    "INSERT INTO sessions (token, userId, expiresAt) VALUES (?, ?, ?)",
+    [session.token, session.userId, session.expiresAt]
+  );
+}
+
+async function deleteExpiredSessions() {
+  await initDb();
+  return run("DELETE FROM sessions WHERE expiresAt <= ?", [Date.now()]);
+}
+
+async function deleteSessionByToken(token) {
+  await initDb();
+  return run("DELETE FROM sessions WHERE token = ?", [token]);
+}
+
+async function getSessionUser(token) {
+  await initDb();
+  return get(
+    "SELECT users.* FROM users JOIN sessions ON sessions.userId = users.id WHERE sessions.token = ? AND sessions.expiresAt > ?",
+    [token, Date.now()]
+  );
+}
+
+async function insertTrack(track) {
+  await initDb();
+  return run(
+    "INSERT INTO tracks (id, title, artist, album, kind, sourceType, sourceUrl, playableUrl, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [track.id, track.title, track.artist, track.album, track.kind, track.sourceType, track.sourceUrl, track.playableUrl, track.createdBy, track.createdAt]
+  );
+}
+
+async function getTrackById(id) {
+  await initDb();
+  return get("SELECT * FROM tracks WHERE id = ?", [id]);
+}
+
+async function getTrackExists(id) {
+  const row = await get("SELECT id FROM tracks WHERE id = ?", [id]);
+  return Boolean(row);
+}
+
+async function getTrackSourceUrls() {
+  await initDb();
+  const rows = await all("SELECT sourceUrl FROM tracks WHERE sourceUrl IS NOT NULL");
+  return rows.map((row) => row.sourceUrl);
+}
+
+async function allTracks() {
+  await initDb();
+  return all("SELECT * FROM tracks");
+}
+
+async function deleteTrack(id) {
+  await initDb();
+  return run("DELETE FROM tracks WHERE id = ?", [id]);
+}
+
+async function deleteListensByTrack(trackId) {
+  await initDb();
+  return run("DELETE FROM listens WHERE trackId = ?", [trackId]);
+}
+
+async function insertListen(listen) {
+  await initDb();
+  return run(
+    "INSERT INTO listens (id, userId, trackId, secondsPlayed, listenedAt) VALUES (?, ?, ?, ?, ?)",
+    [listen.id, listen.userId, listen.trackId, listen.secondsPlayed, listen.listenedAt]
+  );
+}
+
+async function insertPlaylist(playlist) {
+  await initDb();
+  return run(
+    "INSERT INTO playlists (id, name, createdBy, trackIds, createdAt, updatedAt, shareToken, isPublic) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [playlist.id, playlist.name, playlist.createdBy, JSON.stringify(playlist.trackIds || []), playlist.createdAt, playlist.updatedAt, playlist.shareToken || null, playlist.isPublic || 0]
+  );
+}
+
+async function getPlaylistsByUser(userId) {
+  await initDb();
+  const rows = await all("SELECT * FROM playlists WHERE createdBy = ?", [userId]);
+  return rows.map(parsePlaylistRow);
+}
+
+async function getPlaylistById(id) {
+  await initDb();
+  return parsePlaylistRow(await get("SELECT * FROM playlists WHERE id = ?", [id]));
+}
+
+async function playlistNameExists(userId, name) {
+  await initDb();
+  const row = await get("SELECT id FROM playlists WHERE createdBy = ? AND LOWER(name) = LOWER(?)", [userId, name]);
+  return Boolean(row);
+}
+
+async function updatePlaylistTracks(id, trackIds, updatedAt) {
+  await initDb();
+  return run("UPDATE playlists SET trackIds = ?, updatedAt = ? WHERE id = ?", [JSON.stringify(trackIds || []), updatedAt, id]);
+}
+
+async function deletePlaylistById(id) {
+  await initDb();
+  return run("DELETE FROM playlists WHERE id = ?", [id]);
+}
+
+async function allUsers() {
+  await initDb();
+  return all("SELECT * FROM users");
+}
+
+async function allListens() {
+  await initDb();
+  return all("SELECT * FROM listens");
+}
+
+async function removeTrackFromPlaylists(trackId) {
+  await initDb();
+  const rows = await all("SELECT id, trackIds FROM playlists");
+  for (const row of rows) {
+    let ids = [];
+    try {
+      ids = row.trackIds ? JSON.parse(row.trackIds) : [];
+    } catch {
+      ids = [];
+    }
+    if (Array.isArray(ids) && ids.includes(trackId)) {
+      const next = ids.filter((id) => id !== trackId);
+      await run("UPDATE playlists SET trackIds = ?, updatedAt = ? WHERE id = ?", [
+        JSON.stringify(next),
+        new Date().toISOString(),
+        row.id
+      ]);
+    }
+  }
+}
+
 function closeDb() {
   return new Promise((resolve, reject) => {
     if (db) {
@@ -224,5 +387,28 @@ module.exports = {
   run,
   get,
   all,
-  getDb
+  getDb,
+  insertUser,
+  findUserByEmail,
+  insertSession,
+  deleteExpiredSessions,
+  deleteSessionByToken,
+  getSessionUser,
+  insertTrack,
+  getTrackById,
+  getTrackExists,
+  getTrackSourceUrls,
+  allTracks,
+  allUsers,
+  allListens,
+  removeTrackFromPlaylists,
+  deleteTrack,
+  deleteListensByTrack,
+  insertListen,
+  insertPlaylist,
+  getPlaylistsByUser,
+  getPlaylistById,
+  playlistNameExists,
+  updatePlaylistTracks,
+  deletePlaylistById
 };

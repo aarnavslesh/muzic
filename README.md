@@ -20,7 +20,7 @@ A backend-focused music player prototype with:
   - `server.js`
   - `package.json`
   - `lib/`
-  - `data/db.json`
+  - `data/db.sqlite`
   - `test/`
 
 ## Run
@@ -74,11 +74,20 @@ open ./frontend/MuzicSwiftUI/Muzic.app
 - `GET /api/me`
 - `GET /api/tracks`
 - `POST /api/tracks`
+- `DELETE /api/tracks/:id`
 - `POST /api/spotify/import`
 - `POST /api/listens`
 - `GET /api/stats`
+- `GET /api/recommendations`
+- `GET /api/search-local`
+- `GET /api/youtube/search`
+- `GET /api/playlists`
+- `POST /api/playlists`
+- `POST /api/playlists/:id/tracks`
+- `DELETE /api/playlists/:id/tracks/:trackId`
+- `DELETE /api/playlists/:id`
 
-Data is stored locally in `backend/data/db.json`; uploaded songs are stored in `frontend/public/uploads`.
+Data is stored locally in `backend/data/db.sqlite` (SQLite); uploaded songs are stored in `frontend/public/uploads`.
 
 ## Spotify imports
 
