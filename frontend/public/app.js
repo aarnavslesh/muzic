@@ -58,8 +58,201 @@ const previousButton = document.querySelector("#previousButton");
 const nextButton = document.querySelector("#nextButton");
 const addToLibraryButton = document.querySelector("#addToLibraryButton");
 const tempTrackBadge = document.querySelector("#tempTrackBadge");
+const albumHero = document.querySelector("#albumHero");
+const albumHeroFrames = document.querySelector("#albumHeroFrames");
+const albumHeroHint = document.querySelector("#albumHeroHint");
+const albumHeroProgress = document.querySelector("#albumHeroProgress");
+const albumHeroTitle = document.querySelector("#authHeadline");
+const authContent = document.querySelector("#authContent");
 
 const DEFAULT_ALBUM_ART = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&auto=format&fit=crop&q=80";
+
+// ── Album hero: scroll-scrubbed intro on the login/signup page ─────────────
+// Port of the "scroll-locked video hero" component by Guglielmo Giannattasio
+// (guglielmogiannattasio.it) to plain JS: the scrubbed video is replaced by a
+// sequence of album photos. Wheel/touch/arrow input drives progress; the title
+// blur-fades out early and the auth card is revealed at the tagline payoff.
+const HERO_ALBUM_PHOTOS = [
+  "photo-1470225620780-dba8ba36b745",
+  "photo-1493225457124-a3eb161ffa5f",
+  "photo-1445985543470-41fba5c3144a",
+  "photo-1459749411175-04bf5292ceea",
+  "photo-1483412033650-1015ddeb83d1",
+  "photo-1487180144351-b8472da7d491",
+  "photo-1511671782779-c97d3d27a1d4",
+  "photo-1458560871784-56d23406c091",
+  "photo-1507838153414-b4b713384a76",
+  "photo-1514320291840-2e0a9bf2a9ae",
+  "photo-1499415479124-43c32433a620",
+  "photo-1524368535928-5b5e00ddc76b"
+];
+const HERO_SCRUB_DISTANCE = 2800; // px of scroll input for the full sequence
+
+const hero = {
+  target: 0,
+  current: 0,
+  rafId: 0,
+  locked: false,
+  lockedScrollY: 0,
+  touchStartY: 0,
+  active: false,
+  reducedMotion: false,
+  revealed: false
+};
+
+function buildAlbumHero() {
+  if (!albumHeroFrames) return;
+  const fragment = document.createDocumentFragment();
+  HERO_ALBUM_PHOTOS.forEach((photoId, index) => {
+    const img = document.createElement("img");
+    img.src = `https://images.unsplash.com/${photoId}?w=1600&q=70&auto=format&fit=crop`;
+    img.alt = "";
+    img.decoding = "async";
+    if (index > 2) img.loading = "lazy";
+    fragment.appendChild(img);
+  });
+  albumHeroFrames.appendChild(fragment);
+}
+
+function engageHeroLock() {
+  if (!hero.active || hero.locked) return;
+  hero.locked = true;
+  hero.lockedScrollY = window.scrollY;
+  const bodyStyle = document.body.style;
+  bodyStyle.position = "fixed";
+  bodyStyle.top = `-${hero.lockedScrollY}px`;
+  bodyStyle.left = "0";
+  bodyStyle.right = "0";
+  bodyStyle.width = "100%";
+  bodyStyle.height = "100%";
+  bodyStyle.overscrollBehavior = "none";
+}
+
+function releaseHeroLock() {
+  if (!hero.locked) return;
+  const restoreY = hero.lockedScrollY;
+  hero.locked = false;
+  const bodyStyle = document.body.style;
+  bodyStyle.position = "";
+  bodyStyle.top = "";
+  bodyStyle.left = "";
+  bodyStyle.right = "";
+  bodyStyle.width = "";
+  bodyStyle.height = "";
+  bodyStyle.overscrollBehavior = "";
+  window.scrollTo(0, restoreY);
+}
+
+function setHeroProgress(value) {
+  hero.target = Math.min(1, Math.max(0, value));
+}
+
+function addHeroDelta(deltaY) {
+  setHeroProgress(hero.target + deltaY / HERO_SCRUB_DISTANCE);
+}
+
+function jumpHeroToEnd() {
+  // After logout, land straight on the revealed form instead of replaying intro.
+  hero.target = 1;
+  hero.current = 1;
+}
+
+function heroFrame() {
+  hero.rafId = window.requestAnimationFrame(heroFrame);
+  if (!hero.active || authView.classList.contains("hidden")) return;
+
+  hero.current += (hero.target - hero.current) * 0.18;
+  if (Math.abs(hero.target - hero.current) < 0.0004) hero.current = hero.target;
+  const progress = hero.current;
+
+  // Photo sequence crossfade + slow zoom
+  const frames = albumHeroFrames ? albumHeroFrames.children : [];
+  const position = progress * Math.max(1, frames.length - 1);
+  for (let index = 0; index < frames.length; index += 1) {
+    frames[index].style.opacity = String(Math.max(0, 1 - Math.abs(position - index)));
+  }
+  if (albumHeroFrames) albumHeroFrames.style.transform = `scale(${1 + progress * 0.06})`;
+
+  // Title: blur-fades away over the first third of the scrub
+  const titleT = 1 - Math.min(1, Math.max(0, progress / 0.35));
+  if (albumHeroTitle) {
+    albumHeroTitle.style.opacity = String(titleT);
+    albumHeroTitle.style.transform = `translateY(${(1 - titleT) * -24}px) scale(${0.96 + titleT * 0.04})`;
+    albumHeroTitle.style.filter = `blur(${(1 - titleT) * 10}px)`;
+  }
+
+  if (albumHeroHint) albumHeroHint.style.opacity = progress > 0.001 ? "0" : "1";
+  if (albumHeroProgress) albumHeroProgress.style.transform = `scaleX(${progress})`;
+
+  // Payoff: the auth card is revealed once the sequence is nearly complete
+  const revealT = Math.min(1, Math.max(0, (progress - 0.82) / 0.18));
+  if (authContent) {
+    authContent.style.opacity = String(revealT);
+    authContent.style.transform = `translateY(${(1 - revealT) * 20}px) scale(${0.97 + revealT * 0.03})`;
+    authContent.style.filter = `blur(${(1 - revealT) * 8}px)`;
+    const revealed = revealT > 0.5;
+    if (revealed !== hero.revealed) {
+      hero.revealed = revealed;
+      authContent.toggleAttribute("inert", !revealed);
+      authContent.classList.toggle("hero-revealed", revealed);
+    }
+  }
+}
+
+function heroInputAllowed() {
+  return hero.active && !authView.classList.contains("hidden");
+}
+
+function initAlbumHero() {
+  if (!albumHero || !albumHeroFrames || !authContent) return;
+  hero.reducedMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+  buildAlbumHero();
+
+  if (hero.reducedMotion) {
+    // Static first photo + the form immediately, no lock, no scrub.
+    return;
+  }
+
+  hero.active = true;
+  authView.classList.add("hero-driven");
+  // Initial state: form hidden AND unfocusable until the reveal.
+  hero.revealed = false;
+  authContent.setAttribute("inert", "");
+  authContent.classList.remove("hero-revealed");
+
+  window.addEventListener("wheel", (event) => {
+    if (!heroInputAllowed()) return;
+    event.preventDefault();
+    addHeroDelta(event.deltaY);
+  }, { passive: false });
+
+  window.addEventListener("touchstart", (event) => {
+    hero.touchStartY = event.touches[0]?.clientY ?? 0;
+  }, { passive: true });
+
+  window.addEventListener("touchmove", (event) => {
+    if (!heroInputAllowed()) return;
+    const y = event.touches[0]?.clientY ?? hero.touchStartY;
+    addHeroDelta(hero.touchStartY - y);
+    hero.touchStartY = y;
+    event.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener("keydown", (event) => {
+    if (!heroInputAllowed()) return;
+    const tagName = event.target?.tagName;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(tagName)) return;
+    if (["ArrowDown", "PageDown", " "].includes(event.key)) {
+      event.preventDefault();
+      addHeroDelta(180);
+    } else if (["ArrowUp", "PageUp"].includes(event.key)) {
+      event.preventDefault();
+      addHeroDelta(-180);
+    }
+  });
+
+  hero.rafId = window.requestAnimationFrame(heroFrame);
+}
 
 function initDottedSurface() {
   const canvas = document.querySelector("#dottedSurface");
@@ -268,6 +461,11 @@ function renderApp() {
   authView.classList.toggle("hidden", isAuthenticated);
   dashboard.classList.toggle("hidden", !state.user);
   document.body.classList.toggle("auth-active", !isAuthenticated);
+  if (isAuthenticated) {
+    releaseHeroLock();
+  } else {
+    engageHeroLock();
+  }
   if (state.user) {
     document.querySelector("#welcomeTitle").textContent = `${state.user.name}'s library`;
   }
@@ -885,6 +1083,7 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   playerStatus.textContent = "Upload a local audio file or use a direct audio URL for in-app playback.";
   updateProgressUi();
   updatePlayerUi();
+  jumpHeroToEnd();
   renderApp();
 });
 
@@ -1066,6 +1265,7 @@ window.addEventListener("resize", renderRecommendationEngine);
 
 setAuthStep("email");
 updateTrackFormMode();
+initAlbumHero();
 initDottedSurface();
 startRecommendationEngine();
 updateEngineRotationControl();

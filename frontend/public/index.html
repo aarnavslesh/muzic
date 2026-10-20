@@ -21,10 +21,25 @@
         </header>
 
         <div class="auth-radial" aria-hidden="true"></div>
-        <div class="auth-content">
+
+        <!-- Scroll-locked album hero: wheel/touch scrubs through album photos.
+             Ported from the "scroll-locked video hero" component by Guglielmo
+             Giannattasio (guglielmogiannattasio.it), adapted to plain JS with an
+             album-photo sequence instead of a video. -->
+        <div class="album-hero" id="albumHero">
+          <div class="album-hero-frames" id="albumHeroFrames" aria-hidden="true"></div>
+          <div class="album-hero-overlay" aria-hidden="true"></div>
+          <h1 class="album-hero-title" id="authHeadline">Welcome to Muzic, the future of music.</h1>
+          <div class="album-hero-hint" id="albumHeroHint" aria-hidden="true">
+            <span>SCROLL</span>
+            <svg width="14" height="18" viewBox="0 0 14 18"><path d="M7 1 L7 17 M2 12 L7 17 L12 12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </div>
+          <div class="album-hero-progress" aria-hidden="true"><span id="albumHeroProgress"></span></div>
+        </div>
+
+        <div class="auth-content" id="authContent">
           <div class="auth-copy">
             <p class="eyebrow">Muzic access</p>
-            <h1 id="authHeadline">Welcome, to the future of music.</h1>
             <p class="lede">Sign in, play your local library, collect web music links, and let listening data shape your music graph.</p>
           </div>
 
