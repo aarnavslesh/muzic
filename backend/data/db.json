@@ -914,13 +914,115 @@
       "trackId": "trk_22b487d764194b1109ffbebe",
       "secondsPlayed": 10,
       "listenedAt": "2026-05-17T10:42:54.916Z"
+    },
+    {
+      "id": "lis_a70dbf1a24c1daca43983518",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:43:04.707Z"
+    },
+    {
+      "id": "lis_2bd4dc3a609c983276ea94f7",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:43:14.806Z"
+    },
+    {
+      "id": "lis_cbd5f603be8db7c335470e5c",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:43:24.732Z"
+    },
+    {
+      "id": "lis_464bcbf67a684ebff8dc0571",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:43:34.852Z"
+    },
+    {
+      "id": "lis_6c3cab370748721d6af33aa8",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:43:44.739Z"
+    },
+    {
+      "id": "lis_666ce839a11ee1f3d7c5ebe0",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:43:54.870Z"
+    },
+    {
+      "id": "lis_f81c0d67cce08d5ab0181ad5",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:44:04.800Z"
+    },
+    {
+      "id": "lis_96d7e237da7bdd69c58d8a29",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:44:14.933Z"
+    },
+    {
+      "id": "lis_2d20baa9a052cbb7807134bf",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:44:24.766Z"
+    },
+    {
+      "id": "lis_8af7bfe5b40f4ae31643542c",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:44:34.805Z"
+    },
+    {
+      "id": "lis_a633d244fd23a3e6512e295a",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:44:44.909Z"
+    },
+    {
+      "id": "lis_a2b9e16e86b7ffb39be2a871",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:44:54.707Z"
+    },
+    {
+      "id": "lis_8b9ffbd85e069f2cfb4ca074",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "trackId": "trk_22b487d764194b1109ffbebe",
+      "secondsPlayed": 10,
+      "listenedAt": "2026-05-17T10:45:04.836Z"
     }
   ],
   "sessions": [
     {
-      "token": "sess_7d438d5d3a09abc5f5b42ef2",
+      "token": "sess_dd267d6f473beec6117735e4",
       "userId": "usr_396b92c1303847d9449ce1af",
-      "expiresAt": 1779618366518
+      "expiresAt": 1780247577116
+    },
+    {
+      "token": "sess_973984c4d44f6b8f9e002a58",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "expiresAt": 1780248002861
+    },
+    {
+      "token": "sess_7f39b3bbd9e9a1e6bb737a22",
+      "userId": "usr_396b92c1303847d9449ce1af",
+      "expiresAt": 1780248175085
     }
-  ]
+  ],
+  "playlists": []
 }

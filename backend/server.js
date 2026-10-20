@@ -3,13 +3,15 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { URL } = require("url");
+const dbModule = require("./lib/db");
+const { migrateFromJson } = require("./lib/migrations");
 
 const PORT = Number(process.env.PORT || 3000);
 // Bind to all interfaces by default so the dev server is reachable from other machines
 // (e.g., mobile device on same LAN or container). Override with `HOST` env var if needed.
 const HOST = process.env.HOST || "0.0.0.0";
 const ROOT = __dirname;
-const PUBLIC_DIR = path.join(ROOT, "public");
+const PUBLIC_DIR = path.join(ROOT, "../frontend/public");
 const DATA_DIR = path.join(ROOT, "data");
 const UPLOAD_DIR = path.join(PUBLIC_DIR, "uploads");
 const DB_FILE = path.join(DATA_DIR, "db.json");
@@ -32,27 +34,10 @@ const MIME_TYPES = {
 function ensureStorage() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  if (!fs.existsSync(DB_FILE)) {
-    writeDb({
-      users: [],
-      tracks: [],
-      playlists: [],
-      listens: [],
-      sessions: []
-    });
-  }
 }
 
-function readDb() {
-  ensureStorage();
-  const db = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-  if (!Array.isArray(db.playlists)) db.playlists = [];
-  return db;
-}
-
-function writeDb(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-}
+const readDb = dbModule.readDb;
+const writeDb = dbModule.writeDb;
 
 function makeId(prefix) {
   return `${prefix}_${crypto.randomBytes(12).toString("hex")}`;
@@ -638,10 +623,10 @@ function getRecommendations(db, user, limit = 20) {
   const contentRecs = getContentRecommendations(db, user, limit);
   const socialRecs = getSocialRecommendations(db, user, limit);
   const popularRecs = getPopularTracks(db, user, limit);
-  
+
   // Combine and deduplicate
   const allRecommendations = new Map();
-  
+
   // Add content recommendations (weight: 1.0)
   for (const rec of contentRecs) {
     const existing = allRecommendations.get(rec.track.id);
@@ -656,7 +641,7 @@ function getRecommendations(db, user, limit = 20) {
       });
     }
   }
-  
+
   // Add social recommendations (weight: 1.2)
   for (const rec of socialRecs) {
     const existing = allRecommendations.get(rec.track.id);
@@ -671,7 +656,7 @@ function getRecommendations(db, user, limit = 20) {
       });
     }
   }
-  
+
   // Add popular recommendations (weight: 0.8)
   for (const rec of popularRecs) {
     const existing = allRecommendations.get(rec.track.id);
@@ -696,6 +681,71 @@ function getRecommendations(db, user, limit = 20) {
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+}
+
+function normalizeTitle(title) {
+  return normalizeText(title).toLowerCase().trim();
+}
+
+function searchMuzicLibrary(db, title, artist) {
+  const normalizedTitle = normalizeTitle(title);
+  const normalizedArtist = normalizeText(artist).toLowerCase().trim();
+
+  for (const track of db.tracks) {
+    if (normalizeTitle(track.title).includes(normalizedTitle) || normalizeTitle(track.title) === normalizedTitle) {
+      if (!normalizedArtist || normalizeText(track.artist).toLowerCase().includes(normalizedArtist)) {
+        return { found: true, inLibrary: true, track: serializeTrack(track) };
+      }
+    }
+  }
+  return { found: false, inLibrary: false };
+}
+
+function searchLocalFiles(title, artist) {
+  try {
+    const musicDir = path.join(process.env.HOME || process.env.USERPROFILE || "", "Music");
+    if (!fs.existsSync(musicDir)) return { found: false, inLibrary: false };
+
+    const normalizedTitle = normalizeTitle(title);
+    const normalizedArtist = normalizeText(artist).toLowerCase().trim();
+    const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a", ".flac"];
+
+    function searchDir(dir, depth = 0) {
+      if (depth > 5) return null;
+
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+
+          if (entry.isDirectory()) {
+            const result = searchDir(fullPath, depth + 1);
+            if (result) return result;
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (audioExtensions.includes(ext)) {
+              const fileNameWithoutExt = path.basename(entry.name, ext).toLowerCase();
+              if (fileNameWithoutExt.includes(normalizedTitle) || normalizedTitle.includes(fileNameWithoutExt.split(" - ")[0])) {
+                return fullPath;
+              }
+            }
+          }
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
+
+    const filePath = searchDir(musicDir);
+    if (filePath) {
+      return { found: true, inLibrary: false, filePath };
+    }
+  } catch {
+    return { found: false, inLibrary: false };
+  }
+
+  return { found: false, inLibrary: false };
 }
 
 async function handleApiRequest(req, res, url) {
@@ -970,6 +1020,24 @@ async function handleApiRequest(req, res, url) {
     if (!user) return true;
     sendJson(res, 200, { recommendations: getRecommendations(db, user) });
     return true;
+  }
+
+  if (req.method === "GET" && pathname === "/api/search-local") {
+    const user = requireUser(req, res, db);
+    if (!user) return true;
+
+    const title = normalizeText(url.searchParams.get("title"));
+    const artist = normalizeText(url.searchParams.get("artist"));
+
+    if (!title) return sendApiError(res, 400, "Title is required.");
+
+    const muzicResult = searchMuzicLibrary(db, title, artist);
+    if (muzicResult.found) {
+      return sendJson(res, 200, muzicResult);
+    }
+
+    const localResult = searchLocalFiles(title, artist);
+    return sendJson(res, 200, localResult);
   }
 
   if (pathname.startsWith("/api/")) {

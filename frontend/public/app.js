@@ -8,12 +8,14 @@ const state = {
   engineAutoRotate: true,
   engineTimer: null,
   currentTrack: null,
+  currentTrackTemporary: false,
   lastAudioSeconds: 0,
   externalTimer: null,
   externalSeconds: 0,
   isShuffle: false,
   isRepeat: false,
-  authStep: "email"
+  authStep: "email",
+  tempYouTubeEmbeds: new Map()
 };
 
 const authView = document.querySelector("#authView");
@@ -178,6 +180,35 @@ async function api(path, options = {}) {
   return payload;
 }
 
+async function searchLocalMachine(title, artist) {
+  try {
+    const result = await api(`/api/search-local?${new URLSearchParams({ title, artist })}`);
+    return result;
+  } catch (error) {
+    console.error("Local search failed:", error);
+    return { found: false, inLibrary: false };
+  }
+}
+
+function constructYouTubeSearchUrl(title, artist) {
+  const query = `${title} ${artist}`.trim();
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
+
+function getYouTubeCachedEmbed(title, artist) {
+  const key = `${title}|${artist}`;
+  return state.tempYouTubeEmbeds.get(key);
+}
+
+function cacheYouTubeEmbed(title, artist, embedUrl) {
+  const key = `${title}|${artist}`;
+  state.tempYouTubeEmbeds.set(key, {
+    url: embedUrl,
+    searchQuery: `${title} ${artist}`,
+    cachedAt: Date.now()
+  });
+}
+
 function showMessage(element, message) {
   element.textContent = message || "";
 }
@@ -319,7 +350,7 @@ function renderRecommendations() {
         <button class="primary play-recommendation-button" type="button">Play</button>
       </div>
     `;
-    item.querySelector(".play-recommendation-button").addEventListener("click", () => playTrack(track));
+    item.querySelector(".play-recommendation-button").addEventListener("click", () => playRecommendation(recommendation));
     recommendationList.appendChild(item);
   }
 }
@@ -400,7 +431,7 @@ function renderRecommendationEngine() {
       <button class="ghost engine-focus-button" type="button">Focus links</button>
     </div>
   `;
-  detail.querySelector(".engine-play-button").addEventListener("click", () => playTrack(activeRecommendation.track));
+  detail.querySelector(".engine-play-button").addEventListener("click", () => playRecommendation(activeRecommendation));
   detail.querySelector(".engine-focus-button").addEventListener("click", () => {
     state.engineRotation = 270 - (recommendations.findIndex((item) => item.track.id === activeRecommendation.track.id) / total) * 360;
     renderRecommendationEngine();
@@ -492,9 +523,74 @@ function renderStats(stats) {
     : `<li><span>No similar users yet.</span></li>`;
 }
 
+async function playRecommendation(recommendation) {
+  const track = recommendation.track;
+
+  // Try to search locally first
+  const searchResult = await searchLocalMachine(track.title, track.artist);
+
+  if (searchResult.found && searchResult.inLibrary) {
+    // Found in library, play it as a normal track
+    const libraryTrack = state.tracks.find(t => t.id === searchResult.track.id);
+    if (libraryTrack) {
+      state.currentTrackTemporary = false;
+      playTrack(libraryTrack);
+      return;
+    }
+  }
+
+  if (searchResult.found && !searchResult.inLibrary) {
+    // Found on system, but we can't play it directly from file system
+    // Fall through to YouTube search
+  }
+
+  // Not found locally, create temporary YouTube embed
+  const cacheKey = `${track.title}|${track.artist}`;
+  let cachedEmbed = getYouTubeCachedEmbed(track.title, track.artist);
+
+  if (!cachedEmbed) {
+    const youtubeSearchUrl = constructYouTubeSearchUrl(track.title, track.artist);
+    const embedId = "temp_yt_" + Math.random().toString(36).slice(2, 9);
+    const embedUrl = youtubeSearchUrl;
+    cachedEmbed = { url: embedUrl, searchQuery: `${track.title} ${track.artist}` };
+    cacheYouTubeEmbed(track.title, track.artist, embedUrl);
+  }
+
+  // Create temporary track object
+  const tempTrack = {
+    ...track,
+    kind: "external",
+    sourceType: "youtube",
+    sourceUrl: cachedEmbed.url,
+    playableUrl: cachedEmbed.url,
+    isTemporary: true
+  };
+
+  state.currentTrack = tempTrack;
+  state.currentTrackTemporary = true;
+  state.lastAudioSeconds = 0;
+
+  stopExternalTracking();
+  nowPlayingTitle.textContent = track.title;
+  nowPlayingArtist.textContent = `${track.artist} · youtube (temporary)`;
+  setAlbumArtForTrack(track);
+  updateProgressUi();
+
+  audioPlayer.pause();
+  audioPlayer.removeAttribute("src");
+  updateProgressUi();
+  updatePlayerUi();
+  externalPlayer.classList.remove("hidden");
+  externalFrame.src = cachedEmbed.url;
+  openExternalButton.href = cachedEmbed.url;
+  playerStatus.textContent = "This is a temporary YouTube embed. Click 'Add to Library' to import this song permanently.";
+  updatePlayerUi();
+}
+
 function playTrack(track) {
   stopExternalTracking();
   state.currentTrack = track;
+  state.currentTrackTemporary = false;
   state.lastAudioSeconds = 0;
   nowPlayingTitle.textContent = track.title;
   nowPlayingArtist.textContent = `${track.artist} · ${track.kind === "local" ? "local audio" : track.sourceType}`;

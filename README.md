@@ -11,13 +11,60 @@ A backend-focused music player prototype with:
 - Total playing time
 - Similar-user matching based on artist listening vectors
 
+## Project layout
+
+- `frontend/`
+  - `public/` - web UI static assets
+  - `MuzicSwiftUI/` - native macOS SwiftUI app and packaging scripts
+- `backend/`
+  - `server.js`
+  - `package.json`
+  - `lib/`
+  - `data/db.json`
+  - `test/`
+
 ## Run
 
+From the repository root:
+
 ```bash
+cd backend
+npm install
 npm start
 ```
 
 Open `http://localhost:3000`.
+
+## Native SwiftUI interface
+
+The remodeled native macOS UI lives in `frontend/MuzicSwiftUI` and uses the existing Node backend at `http://localhost:3000`.
+
+Run the backend first:
+
+```bash
+cd backend
+npm start
+```
+
+Then launch the SwiftUI app:
+
+```bash
+cd ../frontend/MuzicSwiftUI
+swift run
+```
+
+Or use the helper launcher, which starts the backend if needed:
+
+```bash
+./frontend/MuzicSwiftUI/run-muzic.sh
+```
+
+To make a clickable Mac app bundle:
+
+```bash
+./frontend/MuzicSwiftUI/package-app.sh
+open ./frontend/MuzicSwiftUI/Muzic.app
+```
 
 ## API
 
@@ -31,7 +78,7 @@ Open `http://localhost:3000`.
 - `POST /api/listens`
 - `GET /api/stats`
 
-Data is stored locally in `data/db.json`; uploaded songs are stored in `public/uploads`.
+Data is stored locally in `backend/data/db.json`; uploaded songs are stored in `frontend/public/uploads`.
 
 ## Spotify imports
 
