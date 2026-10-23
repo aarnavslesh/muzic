@@ -13,9 +13,15 @@ const state = {
   externalTimer: null,
   externalSeconds: 0,
   isShuffle: false,
-  isRepeat: false,
+  loopMode: "off",
+  playerOrder: [],
+  playerDirection: null,
   authStep: "email",
-  tempYouTubeEmbeds: new Map()
+  tempYouTubeEmbeds: new Map(),
+  view: "home",
+  playlists: [],
+  favourites: [],
+  searchQuery: ""
 };
 
 const authView = document.querySelector("#authView");
@@ -44,8 +50,12 @@ const nowPlayingTitle = document.querySelector("#nowPlayingTitle");
 const nowPlayingArtist = document.querySelector("#nowPlayingArtist");
 const playerStatus = document.querySelector("#playerStatus");
 const openExternalButton = document.querySelector("#openExternalButton");
-const albumArt = document.querySelector("#albumArt");
-const albumArtWrap = document.querySelector("#albumArtWrap");
+const playerCard = document.querySelector("#musicPlayerCard");
+const playerDisc = document.querySelector("#playerDisc");
+const playerDiscMask = document.querySelector("#albumArtWrap");
+const playerScalesGrid = document.querySelector("#playerScalesGrid");
+const playerTrackInfo = document.querySelector("#playerTrackInfo");
+const playerBarFill = document.querySelector("#playerBarFill");
 const progressBar = document.querySelector("#progressBar");
 const currentTimeLabel = document.querySelector("#currentTimeLabel");
 const durationLabel = document.querySelector("#durationLabel");
@@ -59,34 +69,42 @@ const nextButton = document.querySelector("#nextButton");
 const addToLibraryButton = document.querySelector("#addToLibraryButton");
 const tempTrackBadge = document.querySelector("#tempTrackBadge");
 const albumHero = document.querySelector("#albumHero");
-const albumHeroFrames = document.querySelector("#albumHeroFrames");
+const albumHeroBackdrop = document.querySelector("#albumHeroBackdrop");
+const albumHeroOverlay = document.querySelector("#albumHeroOverlay");
+const albumHeroStreaks = document.querySelector("#albumHeroStreaks");
+const subwayScene = document.querySelector(".subway-scene");
 const albumHeroHint = document.querySelector("#albumHeroHint");
 const albumHeroProgress = document.querySelector("#albumHeroProgress");
 const albumHeroTitle = document.querySelector("#authHeadline");
+const subwayDoorLeft = document.querySelector("#subwayDoorLeft");
+const subwayDoorRight = document.querySelector("#subwayDoorRight");
+const subwayGlow = document.querySelector("#subwayGlow");
 const authContent = document.querySelector("#authContent");
+const dock = document.querySelector("#appDock");
+const topbarSearch = document.querySelector("#topbarSearch");
+const librarySearch = document.querySelector("#librarySearch");
+const playlistForm = document.querySelector("#playlistForm");
+const playlistList = document.querySelector("#playlistList");
+const playlistMessage = document.querySelector("#playlistMessage");
+const refreshPlaylistsButton = document.querySelector("#refreshPlaylistsButton");
+const favouritesList = document.querySelector("#favouritesList");
+const profileFacts = document.querySelector("#profileFacts");
+const profileLogoutButton = document.querySelector("#profileLogoutButton");
 
 const DEFAULT_ALBUM_ART = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&auto=format&fit=crop&q=80";
 
-// ── Album hero: scroll-scrubbed intro on the login/signup page ─────────────
-// Port of the "scroll-locked video hero" component by Guglielmo Giannattasio
-// (guglielmogiannattasio.it) to plain JS: the scrubbed video is replaced by a
-// sequence of album photos. Wheel/touch/arrow input drives progress; the title
-// blur-fades out early and the auth card is revealed at the tagline payoff.
-const HERO_ALBUM_PHOTOS = [
-  "photo-1470225620780-dba8ba36b745",
-  "photo-1493225457124-a3eb161ffa5f",
-  "photo-1445985543470-41fba5c3144a",
-  "photo-1459749411175-04bf5292ceea",
-  "photo-1483412033650-1015ddeb83d1",
-  "photo-1487180144351-b8472da7d491",
-  "photo-1511671782779-c97d3d27a1d4",
-  "photo-1458560871784-56d23406c091",
-  "photo-1507838153414-b4b713384a76",
-  "photo-1514320291840-2e0a9bf2a9ae",
-  "photo-1499415479124-43c32433a620",
-  "photo-1524368535928-5b5e00ddc76b"
-];
+// ── Hero: scroll-scrubbed intro on the login/signup page ───────────────────
+// Inspired by the "scroll-locked video hero" component by Guglielmo
+// Giannattasio (guglielmogiannattasio.it), adapted to plain JS: the hero opens
+// on closed subway doors carrying the Welcome to Muzic headline, wheel/touch/
+// arrow input drives one timeline that slides the doors apart and then flies
+// the camera forward through the doorway onto the poster-collage wall, with
+// the auth card revealed at the payoff.
 const HERO_SCRUB_DISTANCE = 2800; // px of scroll input for the full sequence
+
+function clampUnit(value) {
+  return Math.min(1, Math.max(0, value));
+}
 
 const hero = {
   target: 0,
@@ -99,20 +117,6 @@ const hero = {
   reducedMotion: false,
   revealed: false
 };
-
-function buildAlbumHero() {
-  if (!albumHeroFrames) return;
-  const fragment = document.createDocumentFragment();
-  HERO_ALBUM_PHOTOS.forEach((photoId, index) => {
-    const img = document.createElement("img");
-    img.src = `https://images.unsplash.com/${photoId}?w=1600&q=70&auto=format&fit=crop`;
-    img.alt = "";
-    img.decoding = "async";
-    if (index > 2) img.loading = "lazy";
-    fragment.appendChild(img);
-  });
-  albumHeroFrames.appendChild(fragment);
-}
 
 function engageHeroLock() {
   if (!hero.active || hero.locked) return;
@@ -165,16 +169,38 @@ function heroFrame() {
   if (Math.abs(hero.target - hero.current) < 0.0004) hero.current = hero.target;
   const progress = hero.current;
 
-  // Photo sequence crossfade + slow zoom
-  const frames = albumHeroFrames ? albumHeroFrames.children : [];
-  const position = progress * Math.max(1, frames.length - 1);
-  for (let index = 0; index < frames.length; index += 1) {
-    frames[index].style.opacity = String(Math.max(0, 1 - Math.abs(position - index)));
-  }
-  if (albumHeroFrames) albumHeroFrames.style.transform = `scale(${1 + progress * 0.06})`;
+  // Camera flight: the doors part first, then the viewpoint pushes forward
+  // through the doorway — the car scales up past the lens while the collage
+  // wall behind it grows more slowly, because it is further from the camera.
+  const doorT = clampUnit((progress - 0.05) / 0.42);
+  const pushT = clampUnit((progress - 0.22) / 0.58);
+  const flight = pushT * pushT * (3 - 2 * pushT);
 
-  // Title: blur-fades away over the first third of the scrub
-  const titleT = 1 - Math.min(1, Math.max(0, progress / 0.35));
+  if (subwayDoorLeft) subwayDoorLeft.style.transform = `translate3d(${-doorT * 102}%, 0, 0)`;
+  if (subwayDoorRight) subwayDoorRight.style.transform = `translate3d(${doorT * 102}%, 0, 0)`;
+  if (subwayScene) subwayScene.style.transform = `scale(${1 + flight * 2.4})`;
+
+  // Light from the platform ahead: flares while the doors part, flares again
+  // as we near the wall, then clears once we are through the doorway.
+  if (subwayGlow) {
+    const glow = Math.min(1, Math.sin(Math.PI * doorT) * 0.8 + Math.sin(Math.PI * flight) * 0.5);
+    subwayGlow.style.opacity = String(glow);
+  }
+
+  // The wall ahead stays soft while it is far away and sharpens as we arrive.
+  if (albumHeroBackdrop) {
+    albumHeroBackdrop.style.transform = `scale(${1 + flight * 0.3})`;
+    const blur = (1 - flight) * 5;
+    albumHeroBackdrop.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : "none";
+  }
+  if (albumHeroOverlay) albumHeroOverlay.style.opacity = String(1 - flight * 0.45);
+  if (albumHeroStreaks) {
+    albumHeroStreaks.style.opacity = String(Math.sin(Math.PI * flight) * 0.14);
+    albumHeroStreaks.style.transform = `rotate(${flight * 120}deg) scale(${1 + flight * 0.5})`;
+  }
+
+  // Title: sits on the closed doors, blur-fades away as they part
+  const titleT = 1 - Math.min(1, Math.max(0, (progress - 0.05) / 0.33));
   if (albumHeroTitle) {
     albumHeroTitle.style.opacity = String(titleT);
     albumHeroTitle.style.transform = `translateY(${(1 - titleT) * -24}px) scale(${0.96 + titleT * 0.04})`;
@@ -184,8 +210,9 @@ function heroFrame() {
   if (albumHeroHint) albumHeroHint.style.opacity = progress > 0.001 ? "0" : "1";
   if (albumHeroProgress) albumHeroProgress.style.transform = `scaleX(${progress})`;
 
-  // Payoff: the auth card is revealed once the sequence is nearly complete
-  const revealT = Math.min(1, Math.max(0, (progress - 0.82) / 0.18));
+  // Payoff: the doors are clear by ~0.47 and the camera is through the
+  // doorway by ~0.95, so the login/signup card rides in on the last stretch.
+  const revealT = Math.min(1, Math.max(0, (progress - 0.7) / 0.24));
   if (authContent) {
     authContent.style.opacity = String(revealT);
     authContent.style.transform = `translateY(${(1 - revealT) * 20}px) scale(${0.97 + revealT * 0.03})`;
@@ -204,12 +231,11 @@ function heroInputAllowed() {
 }
 
 function initAlbumHero() {
-  if (!albumHero || !albumHeroFrames || !authContent) return;
+  if (!albumHero || !albumHeroBackdrop || !authContent) return;
   hero.reducedMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-  buildAlbumHero();
 
   if (hero.reducedMotion) {
-    // Static first photo + the form immediately, no lock, no scrub.
+    // Static collage wall + the form immediately, no lock, no scrub.
     return;
   }
 
@@ -463,8 +489,10 @@ function renderApp() {
   document.body.classList.toggle("auth-active", !isAuthenticated);
   if (isAuthenticated) {
     releaseHeroLock();
+    startPlayerLoop();
   } else {
     engageHeroLock();
+    stopPlayerLoop();
   }
   if (state.user) {
     document.querySelector("#welcomeTitle").textContent = `${state.user.name}'s library`;
@@ -475,7 +503,10 @@ async function loadInitialState() {
   const { user } = await api("/api/me");
   state.user = user;
   renderApp();
-  if (state.user) await refreshDashboard();
+  if (state.user) {
+    loadFavourites();
+    await refreshDashboard();
+  }
 }
 
 async function refreshDashboard() {
@@ -485,11 +516,91 @@ async function refreshDashboard() {
     api("/api/recommendations")
   ]);
   state.tracks = tracksResult.tracks;
+  state.playerOrder = state.isShuffle ? playerShuffledIds() : state.tracks.map((track) => track.id);
   state.recommendations = recommendationsResult.recommendations || [];
   renderTracks();
   renderStats(statsResult);
   renderRecommendations();
   renderRecommendationEngine();
+}
+
+// ── Dock navigation ─────────────────────────────────────────────────────────
+// The floating dock drives the signed-in app: four views (home, playlists,
+// favourites, profile) plus two actions (search the library, add music).
+const DOCK_VIEWS = {
+  home: ["playerBand", "libraryGrid", "statsGrid", "enginePanel", "recommendationsPanel"],
+  playlists: ["playlistsView"],
+  favourites: ["favouritesView"],
+  profile: ["profileView"]
+};
+
+const HEART_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
+
+function favouritesStorageKey() {
+  return `muzic:favourites:${state.user ? state.user.id : "guest"}`;
+}
+
+function loadFavourites() {
+  try {
+    const raw = window.localStorage.getItem(favouritesStorageKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    state.favourites = Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    state.favourites = [];
+  }
+}
+
+function saveFavourites() {
+  try {
+    window.localStorage.setItem(favouritesStorageKey(), JSON.stringify(state.favourites));
+  } catch {
+    // Storage can be blocked (private mode); favourites still work in memory.
+  }
+}
+
+function isFavourite(trackId) {
+  return state.favourites.includes(trackId);
+}
+
+function toggleFavourite(trackId) {
+  if (isFavourite(trackId)) {
+    state.favourites = state.favourites.filter((id) => id !== trackId);
+  } else {
+    state.favourites = [...state.favourites, trackId];
+  }
+  saveFavourites();
+  renderTracks();
+  renderFavourites();
+}
+
+function getVisibleTracks() {
+  const query = state.searchQuery.trim().toLowerCase();
+  if (!query) return state.tracks;
+  return state.tracks.filter((track) => [track.title, track.artist, track.album]
+    .some((value) => String(value || "").toLowerCase().includes(query)));
+}
+
+function buildTrackRow(track, { showRemove = true } = {}) {
+  const item = document.createElement("article");
+  item.className = "track-item";
+  const favourite = isFavourite(track.id);
+  item.innerHTML = `
+    <div>
+      <strong>${escapeHtml(track.title)}</strong>
+      <span>${escapeHtml(track.artist)}${track.album ? ` · ${escapeHtml(track.album)}` : ""} · ${track.kind}</span>
+    </div>
+    <div class="track-actions">
+      <button class="primary play-track-button" type="button">Play</button>
+      <button class="ghost favourite-button ${favourite ? "is-favourite" : ""}" type="button" aria-pressed="${favourite}" aria-label="${favourite ? "Remove from favourites" : "Add to favourites"}">${HEART_ICON}</button>
+      ${showRemove ? `<button class="ghost remove-track-button" type="button">Remove</button>` : ""}
+    </div>
+  `;
+  item.querySelector(".play-track-button").addEventListener("click", () => playTrack(track));
+  item.querySelector(".favourite-button").addEventListener("click", () => toggleFavourite(track.id));
+  if (showRemove) {
+    item.querySelector(".remove-track-button").addEventListener("click", () => removeTrack(track));
+  }
+  return item;
 }
 
 function renderTracks() {
@@ -498,24 +609,251 @@ function renderTracks() {
     return;
   }
 
-  trackList.innerHTML = "";
-  for (const track of state.tracks) {
-    const item = document.createElement("article");
-    item.className = "track-item";
-    item.innerHTML = `
-      <div>
-        <strong>${escapeHtml(track.title)}</strong>
-        <span>${escapeHtml(track.artist)}${track.album ? ` · ${escapeHtml(track.album)}` : ""} · ${track.kind}</span>
-      </div>
-      <div class="track-actions">
-        <button class="primary play-track-button" type="button">Play</button>
-        <button class="ghost remove-track-button" type="button">Remove</button>
-      </div>
-    `;
-    item.querySelector(".play-track-button").addEventListener("click", () => playTrack(track));
-    item.querySelector(".remove-track-button").addEventListener("click", () => removeTrack(track));
-    trackList.appendChild(item);
+  const visible = getVisibleTracks();
+  if (!visible.length) {
+    trackList.innerHTML = `<p class="message">Nothing matches “${escapeHtml(state.searchQuery.trim())}”.</p>`;
+    return;
   }
+
+  trackList.innerHTML = "";
+  for (const track of visible) {
+    trackList.appendChild(buildTrackRow(track));
+  }
+}
+
+function renderFavourites() {
+  if (!favouritesList) return;
+  const tracks = state.tracks.filter((track) => isFavourite(track.id));
+  if (!tracks.length) {
+    favouritesList.innerHTML = `<p class="message">No favourites yet — tap the heart on any song in your library.</p>`;
+    return;
+  }
+  favouritesList.innerHTML = "";
+  for (const track of tracks) {
+    favouritesList.appendChild(buildTrackRow(track, { showRemove: false }));
+  }
+}
+
+function setDockActive(key) {
+  if (!dock) return;
+  dock.querySelectorAll(".dock-item").forEach((item) => {
+    item.classList.toggle("is-active", item.dataset.dock === key);
+  });
+}
+
+function setDashboardView(view) {
+  const target = DOCK_VIEWS[view] ? view : "home";
+  state.view = target;
+  const visible = new Set(DOCK_VIEWS[target]);
+  for (const ids of Object.values(DOCK_VIEWS)) {
+    for (const id of ids) {
+      const element = document.getElementById(id);
+      if (element) element.classList.toggle("hidden", !visible.has(id));
+    }
+  }
+  setDockActive(target);
+
+  if (target === "home") renderTracks();
+  if (target === "favourites") renderFavourites();
+  if (target === "profile") renderProfile();
+  if (target === "playlists") loadPlaylists();
+  if (state.user) window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderProfile() {
+  if (!profileFacts || !state.user) return;
+  const user = state.user;
+  const joined = user.createdAt ? new Date(user.createdAt) : null;
+  const joinedLabel = joined && !Number.isNaN(joined.getTime())
+    ? joined.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+    : "—";
+  profileFacts.innerHTML = `
+    <div><dt>Name</dt><dd>${escapeHtml(user.name)}</dd></div>
+    <div><dt>Email</dt><dd>${escapeHtml(user.email)}</dd></div>
+    <div><dt>Member since</dt><dd>${escapeHtml(joinedLabel)}</dd></div>
+    <div><dt>Library</dt><dd>${state.tracks.length} song${state.tracks.length === 1 ? "" : "s"} · ${state.playlists.length} playlist${state.playlists.length === 1 ? "" : "s"}</dd></div>
+  `;
+}
+
+async function loadPlaylists() {
+  if (!playlistList) return;
+  try {
+    const { playlists } = await api("/api/playlists");
+    state.playlists = playlists || [];
+    renderPlaylists();
+  } catch (error) {
+    showMessage(playlistMessage, error.message);
+  }
+}
+
+function renderPlaylists() {
+  if (!playlistList) return;
+  if (!state.playlists.length) {
+    playlistList.innerHTML = `<p class="message">No playlists yet. Create one above, then add songs to it.</p>`;
+    return;
+  }
+
+  playlistList.innerHTML = "";
+  for (const playlist of state.playlists) {
+    const card = document.createElement("article");
+    card.className = "playlist-card";
+    const available = state.tracks.filter((track) => !(playlist.trackIds || []).includes(track.id));
+    const options = available
+      .map((track) => `<option value="${escapeHtml(track.id)}">${escapeHtml(track.title)} — ${escapeHtml(track.artist)}</option>`)
+      .join("");
+
+    card.innerHTML = `
+      <div class="playlist-card-head">
+        <h4>${escapeHtml(playlist.name)}</h4>
+        <div class="track-actions">
+          <button class="ghost remove-playlist-button" type="button">Delete</button>
+        </div>
+      </div>
+      <ul class="playlist-tracks">
+        ${(playlist.tracks || []).map((track) => `
+          <li class="playlist-track">
+            <span>${escapeHtml(track.title)} — ${escapeHtml(track.artist)}</span>
+            <button class="ghost remove-playlist-track-button" type="button" data-track-id="${escapeHtml(track.id)}">Remove</button>
+          </li>
+        `).join("") || `<li class="playlist-track"><span>No songs in this playlist yet.</span></li>`}
+      </ul>
+      ${available.length ? `
+        <div class="playlist-add">
+          <label class="hidden">Add a song</label>
+          <select class="playlist-track-picker">${options}</select>
+          <button class="primary add-to-playlist-button" type="button">Add</button>
+        </div>
+      ` : ""}
+    `;
+
+    card.querySelector(".remove-playlist-button").addEventListener("click", async () => {
+      try {
+        await api(`/api/playlists/${encodeURIComponent(playlist.id)}`, { method: "DELETE" });
+        showMessage(playlistMessage, `Deleted “${playlist.name}”.`);
+        await loadPlaylists();
+      } catch (error) {
+        showMessage(playlistMessage, error.message);
+      }
+    });
+
+    const removeTrackButton = card.querySelector(".remove-playlist-track-button");
+    if (removeTrackButton) {
+      removeTrackButton.addEventListener("click", async () => {
+        try {
+          await api(`/api/playlists/${encodeURIComponent(playlist.id)}/tracks/${encodeURIComponent(removeTrackButton.dataset.trackId)}`, { method: "DELETE" });
+          await loadPlaylists();
+        } catch (error) {
+          showMessage(playlistMessage, error.message);
+        }
+      });
+    }
+
+    const addButton = card.querySelector(".add-to-playlist-button");
+    if (addButton) {
+      addButton.addEventListener("click", async () => {
+        const picker = card.querySelector(".playlist-track-picker");
+        const trackId = picker ? picker.value : "";
+        if (!trackId) return;
+        try {
+          await api(`/api/playlists/${encodeURIComponent(playlist.id)}/tracks`, {
+            method: "POST",
+            body: JSON.stringify({ trackId })
+          });
+          showMessage(playlistMessage, "Song added to the playlist.");
+          await loadPlaylists();
+        } catch (error) {
+          showMessage(playlistMessage, error.message);
+        }
+      });
+    }
+
+    playlistList.appendChild(card);
+  }
+}
+
+function openLibrarySearch() {
+  if (state.view !== "home") setDashboardView("home");
+  if (topbarSearch) topbarSearch.classList.remove("hidden");
+  if (librarySearch) {
+    librarySearch.focus();
+    librarySearch.select();
+  }
+  setDockActive("search");
+}
+
+function focusAddMusic() {
+  if (state.view !== "home") setDashboardView("home");
+  const form = document.querySelector("#trackForm");
+  const titleInput = form ? form.querySelector('input[name="title"]') : null;
+  if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (titleInput) window.setTimeout(() => titleInput.focus(), 320);
+  setDockActive("add");
+}
+
+function handleDockAction(action) {
+  if (action === "home") {
+    setDashboardView("home");
+    return;
+  }
+  if (action === "search") {
+    openLibrarySearch();
+    return;
+  }
+  if (action === "add") {
+    focusAddMusic();
+    return;
+  }
+  setDashboardView(action);
+}
+
+function initDock() {
+  if (!dock) return;
+  dock.addEventListener("click", (event) => {
+    const button = event.target.closest(".dock-item");
+    if (!button || !button.dataset.dock) return;
+    handleDockAction(button.dataset.dock);
+  });
+
+  if (librarySearch) {
+    librarySearch.addEventListener("input", () => {
+      state.searchQuery = librarySearch.value;
+      renderTracks();
+    });
+    librarySearch.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      librarySearch.value = "";
+      state.searchQuery = "";
+      renderTracks();
+      librarySearch.blur();
+    });
+  }
+
+  if (playlistForm) {
+    playlistForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nameInput = playlistForm.querySelector('input[name="name"]');
+      const name = nameInput ? nameInput.value.trim() : "";
+      if (!name) return;
+      try {
+        await api("/api/playlists", { method: "POST", body: JSON.stringify({ name }) });
+        nameInput.value = "";
+        showMessage(playlistMessage, `Created “${name}”.`);
+        await loadPlaylists();
+      } catch (error) {
+        showMessage(playlistMessage, error.message);
+      }
+    });
+  }
+
+  if (refreshPlaylistsButton) {
+    refreshPlaylistsButton.addEventListener("click", () => loadPlaylists());
+  }
+
+  if (profileLogoutButton) {
+    profileLogoutButton.addEventListener("click", () => document.querySelector("#logoutButton").click());
+  }
+
+  setDashboardView("home");
 }
 
 function getRecommendationEnergy(recommendation) {
@@ -700,7 +1038,7 @@ async function removeTrack(track) {
       nowPlayingTitle.textContent = "Choose a song";
       nowPlayingArtist.textContent = "No listening session is active.";
       playerStatus.textContent = "Upload a local audio file or use a direct audio URL for in-app playback.";
-      albumArt.src = DEFAULT_ALBUM_ART;
+      playerResetCover();
       updateProgressUi();
       updatePlayerUi();
     }
@@ -724,18 +1062,29 @@ function updatePlayerUi() {
   playPauseButton.title = isEmbeddedExternal ? "Open source" : isPlaying ? "Pause" : "Play";
   playPauseButton.setAttribute("aria-label", playPauseButton.title);
   playPauseButton.classList.toggle("external-mode", isEmbeddedExternal);
-  repeatButton.classList.toggle("active", state.isRepeat);
-  shuffleButton.classList.toggle("active", state.isShuffle);
+  repeatButton.classList.toggle("is-active", state.loopMode !== "off");
+  repeatButton.classList.toggle("mode-one", state.loopMode === "one");
+  const loopLabel = state.loopMode === "off" ? "Repeat off" : state.loopMode === "all" ? "Repeat all" : "Repeat one";
+  repeatButton.title = loopLabel;
+  repeatButton.setAttribute("aria-label", loopLabel);
+  shuffleButton.classList.toggle("is-active", state.isShuffle);
+  shuffleButton.setAttribute("aria-pressed", state.isShuffle ? "true" : "false");
+  playerCard?.classList.toggle("is-playing", isPlaying);
 }
 
 function updateProgressUi() {
   const duration = Number.isFinite(audioPlayer.duration) ? audioPlayer.duration : 0;
   const current = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
-  progressBar.max = String(duration || 100);
-  progressBar.value = String(current);
-  progressBar.style.setProperty("--progress", `${duration > 0 ? (current / duration) * 100 : 0}%`);
+  const percent = duration > 0 ? (current / duration) * 100 : 0;
+  if (playerBarFill) playerBarFill.style.width = `${percent}%`;
+  progressBar?.setAttribute("aria-valuenow", String(Math.round(percent)));
+  progressBar?.setAttribute("aria-valuetext", `${formatClock(current)} of ${formatClock(duration)}`);
   currentTimeLabel.textContent = formatClock(current);
   durationLabel.textContent = formatClock(duration);
+  const analysis = playerWidget.analysis.element;
+  if (analysis && Math.abs((analysis.currentTime || 0) - current) > 1.5) {
+    analysis.currentTime = current;
+  }
 }
 
 function buildTrackArtDataUri(track) {
@@ -763,11 +1112,492 @@ function buildTrackArtDataUri(track) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function setAlbumArtForTrack(track) {
+/* ── Music player widget ────────────────────────────────────────────────
+   A vanilla port of the "music-player-widget" component. The dashboard keeps
+   ownership of playback (local uploads, direct audio URLs, external
+   iframes); this layer adds the widget's presentation and controls:
+   a spinning disc with layered cover transitions, the 10x10 "scales"
+   equaliser, sliding track info, a seekable bar and shuffle / loop modes. */
+
+const PLAYER_COLS = 10;
+const PLAYER_ROWS = 10;
+const PLAYER_BANDS = [[0, 1], [1, 3], [3, 6], [6, 10], [10, 16], [16, 24], [24, 36], [36, 52], [52, 74], [74, 100]];
+const PLAYER_SPIN_MAX = 0.4375;
+const PLAYER_BURST_MS = 620;
+const PLAYER_PART_A_DUR = 1.5;
+const PLAYER_PART_A_TO = 11;
+const PLAYER_PART_A_STEP = 3 / (PLAYER_COLS - 1);
+const PLAYER_PART_B_DUR = 1;
+const PLAYER_SCALE_FROM = 0.133;
+const PLAYER_SCALE_TO = 0.8;
+const PLAYER_LAYER_MS = 760;
+
+const playerWidget = {
+  clock: 0,
+  rotation: 0,
+  velocity: 0,
+  burst: { from: 0, start: 0, active: false, pending: false },
+  coverId: 0,
+  covers: [],
+  zoomed: false,
+  placeholder: null,
+  raf: 0,
+  lastFrame: 0,
+  lastMixerTime: -1,
+  columns: [],
+  circles: [],
+  reducedMotion: false,
+  analysis: { ctx: null, analyser: null, data: null, element: null, connected: false }
+};
+
+const playerSineOut = (x) => Math.sin((x * Math.PI) / 2);
+const playerSineIn = (x) => 1 - Math.cos((x * Math.PI) / 2);
+const playerSineInOut = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
+const playerLerp = (a, b, t) => a + (b - a) * t;
+
+function playerIsPlaying() {
+  return Boolean(state.externalTimer) || (!audioPlayer.paused && !audioPlayer.ended);
+}
+
+function playerColumnY(time, col) {
+  const local = time - col * PLAYER_PART_A_STEP;
+  const period = PLAYER_PART_A_DUR * 2;
+  const cyc = ((local % period) + period) % period;
+  if (cyc < PLAYER_PART_A_DUR) return PLAYER_PART_A_TO * playerSineInOut(cyc / PLAYER_PART_A_DUR);
+  return PLAYER_PART_A_TO * playerSineInOut(1 - (cyc - PLAYER_PART_A_DUR) / PLAYER_PART_A_DUR);
+}
+
+function playerCircleTransform(time, col, row) {
+  const frac = row / PLAYER_ROWS;
+  const yFrom = playerLerp(77, -77, frac);
+  const yTo = playerLerp(col, -col, frac);
+  const local = time - col / PLAYER_COLS;
+  const period = PLAYER_PART_B_DUR * 2;
+  const cyc = ((local % period) + period) % period;
+  const e = cyc < PLAYER_PART_B_DUR
+    ? playerSineOut(cyc / PLAYER_PART_B_DUR)
+    : playerSineIn(1 - (cyc - PLAYER_PART_B_DUR) / PLAYER_PART_B_DUR);
+  return [playerLerp(yFrom, yTo, e), playerLerp(PLAYER_SCALE_FROM, PLAYER_SCALE_TO, e)];
+}
+
+function buildPlayerScales() {
+  if (!playerScalesGrid) return;
+  const namespace = "http://www.w3.org/2000/svg";
+  const fragment = document.createDocumentFragment();
+  for (let col = 0; col < PLAYER_COLS; col += 1) {
+    const column = document.createElementNS(namespace, "g");
+    column.setAttribute("style", `transform: translate(${col * 10}px, 0px)`);
+    for (let row = 0; row < PLAYER_ROWS; row += 1) {
+      const cell = document.createElementNS(namespace, "g");
+      cell.setAttribute("mask", "url(#playerScalesMask)");
+      cell.setAttribute("transform", `translate(0 ${row * 10})`);
+      const circle = document.createElementNS(namespace, "circle");
+      circle.setAttribute("cx", "5");
+      circle.setAttribute("cy", "5");
+      circle.setAttribute("r", "5");
+      cell.appendChild(circle);
+      column.appendChild(cell);
+    }
+    fragment.appendChild(column);
+  }
+  playerScalesGrid.appendChild(fragment);
+  playerWidget.columns = [...playerScalesGrid.querySelectorAll(":scope > g")];
+  playerWidget.circles = playerWidget.columns.map((column) => [...column.querySelectorAll("circle")]);
+}
+
+function playerSpectrum() {
+  const analysis = playerWidget.analysis;
+  if (!analysis.analyser || !analysis.data) return null;
+  if (analysis.ctx?.state === "suspended") analysis.ctx.resume().catch(() => {});
+  analysis.analyser.getByteFrequencyData(analysis.data);
+  return analysis.data;
+}
+
+function playerTick(now) {
+  playerWidget.raf = requestAnimationFrame(playerTick);
+  const dt = playerWidget.lastFrame ? Math.min(64, now - playerWidget.lastFrame) : 16;
+  playerWidget.lastFrame = now;
+  const playing = playerIsPlaying();
+  if (playing) playerWidget.clock += dt / 1000;
+
+  // Visitors who ask for reduced motion get a still disc and a still
+  // equaliser; the transport controls keep working exactly the same.
+  if (playerWidget.reducedMotion) {
+    playerWidget.velocity = 0;
+    return;
+  }
+
+  // Disc: spins up while playing, coasts to a stop when paused and snaps
+  // upright while the artwork is expanded.
+  if (playing) {
+    playerWidget.velocity += (PLAYER_SPIN_MAX - playerWidget.velocity) * 0.2;
+  } else {
+    playerWidget.velocity *= 0.96;
+    if (playerWidget.velocity < 0.001) playerWidget.velocity = 0;
+  }
+  if (playerWidget.zoomed) {
+    const target = Math.round(playerWidget.rotation / 360) * 360;
+    const next = playerWidget.rotation + (target - playerWidget.rotation) * 0.08;
+    playerWidget.rotation = Math.abs(target - next) < 0.1 ? target : next;
+  } else {
+    playerWidget.rotation += playerWidget.velocity;
+  }
+  const burst = playerWidget.burst;
+  if (burst.pending) {
+    burst.start = now;
+    burst.pending = false;
+    burst.active = true;
+  }
+  let burstRotation = 0;
+  if (burst.active) {
+    const t = (now - burst.start) / PLAYER_BURST_MS;
+    if (t >= 1) burst.active = false;
+    else burstRotation = burst.from * (1 - (1 - Math.pow(1 - t, 3)));
+  }
+  if (playerDisc) {
+    playerDisc.style.transform = `scale(1.01) rotate(${playerWidget.rotation + burstRotation}deg)`;
+  }
+
+  // Scales: each column bobs and its dots breathe with the band energy.
+  const data = playerSpectrum();
+  const time = playerWidget.clock;
+  if (!data && time === playerWidget.lastMixerTime) return;
+  playerWidget.lastMixerTime = time;
+  for (let col = 0; col < PLAYER_COLS; col += 1) {
+    let energy = 1;
+    if (data) {
+      const [from, to] = PLAYER_BANDS[col];
+      let sum = 0;
+      for (let bin = from; bin < to; bin += 1) sum += data[bin] ?? 0;
+      energy = Math.sqrt(sum / (to - from) / 255);
+    }
+    const bobGain = data ? 0.4 + energy : 1;
+    const scaleGain = data ? 0.5 + energy : 1;
+    const column = playerWidget.columns[col];
+    if (column) column.style.transform = `translate(${col * 10}px, ${playerColumnY(time, col) * bobGain}px)`;
+    const circles = playerWidget.circles[col] || [];
+    for (let row = 0; row < PLAYER_ROWS; row += 1) {
+      const circle = circles[row];
+      if (!circle) continue;
+      const [offsetY, scale] = playerCircleTransform(time, col, row);
+      circle.style.transform = `translateY(${offsetY}px) scale(${scale * scaleGain})`;
+    }
+  }
+}
+
+function startPlayerLoop() {
+  if (playerWidget.raf) return;
+  playerWidget.lastFrame = 0;
+  playerWidget.raf = requestAnimationFrame(playerTick);
+}
+
+function stopPlayerLoop() {
+  if (!playerWidget.raf) return;
+  cancelAnimationFrame(playerWidget.raf);
+  playerWidget.raf = 0;
+}
+
+function playerEnsureContext() {
+  const analysis = playerWidget.analysis;
+  if (analysis.ctx) return analysis.ctx;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  try {
+    analysis.ctx = new Ctor();
+  } catch {
+    analysis.ctx = null;
+  }
+  return analysis.ctx;
+}
+
+/* The dashboard's own <audio> element is never routed through Web Audio: a
+   cross-origin source would be silenced by the CORS taint. A dedicated,
+   gain-muted clone feeds the analyser instead, so the mix is untouched. */
+function playerCanAnalyse(src) {
+  if (!src) return false;
+  if (src.startsWith("data:")) return src.length <= 12_000_000;
+  if (src.startsWith("blob:")) return true;
+  try {
+    return new URL(src, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function playerConnectAnalyser(src) {
+  const analysis = playerWidget.analysis;
+  if (analysis.connected || !playerCanAnalyse(src)) return;
+  const ctx = playerEnsureContext();
+  if (!ctx) return;
+  try {
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.8;
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    const element = document.createElement("audio");
+    element.preload = "auto";
+    const source = ctx.createMediaElementSource(element);
+    source.connect(analyser);
+    analyser.connect(mute);
+    mute.connect(ctx.destination);
+    analysis.analyser = analyser;
+    analysis.data = new Uint8Array(analyser.frequencyBinCount);
+    analysis.element = element;
+    analysis.connected = true;
+  } catch {
+    /* analyser unavailable in this browser */
+  }
+}
+
+function playerAttachAnalyser(src) {
+  const analysis = playerWidget.analysis;
+  if (!analysis.connected) {
+    playerConnectAnalyser(src);
+    if (!analysis.connected) return;
+  }
+  const element = analysis.element;
+  if (!element) return;
+  if (element.dataset.source !== src) {
+    element.dataset.source = src;
+    element.src = src;
+    element.currentTime = 0;
+  }
+  element.play().catch(() => {});
+}
+
+function playerDetachAnalyser() {
+  const element = playerWidget.analysis.element;
+  if (!element) return;
+  element.pause();
+}
+
+function playerTransitionSound(bassEnergy = 0.5) {
+  const ctx = playerEnsureContext();
+  if (!ctx) return;
+  try {
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const now = ctx.currentTime;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const startFreq = 440 + bassEnergy * 440;
+    const endFreq = startFreq * (2 / 3);
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(startFreq, now);
+    oscillator.frequency.exponentialRampToValueAtTime(endFreq, now + 0.09);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.06, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    oscillator.connect(gain).connect(ctx.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.18);
+  } catch {
+    /* Web Audio unavailable */
+  }
+}
+
+function playerPushCover(track, direction) {
+  if (!playerDisc) return;
+  const art = track ? buildTrackArtDataUri(track) : DEFAULT_ALBUM_ART;
+  const id = (playerWidget.coverId += 1);
+  const image = document.createElement("img");
+  image.className = "player-cover cover-enter";
+  image.alt = track ? `${track.title} — ${track.artist}` : "Album art";
+  image.draggable = false;
+  image.addEventListener("error", () => { image.src = DEFAULT_ALBUM_ART; }, { once: true });
+  image.src = art;
+  playerDisc.appendChild(image);
+
+  const previous = playerWidget.covers[playerWidget.covers.length - 1];
+  if (previous) {
+    previous.el.classList.remove("cover-enter");
+    previous.el.classList.add("cover-exit");
+  }
+  playerWidget.covers.push({ id, el: image });
+  if (previous) {
+    window.setTimeout(() => {
+      previous.el.remove();
+      playerWidget.covers = playerWidget.covers.filter((cover) => cover.id !== previous.id);
+    }, PLAYER_LAYER_MS);
+  }
+  if (direction) {
+    playerWidget.burst.from = direction === "prev" ? 360 : -360;
+    playerWidget.burst.pending = true;
+  }
+}
+
+function playerResetCover() {
+  playerWidget.covers.forEach((cover) => cover.el.remove());
+  playerWidget.covers = [];
+  playerPushCover(null, null);
+}
+
+function playerShowTrackInfo(title, artist, direction) {
+  const offset = direction === "next" ? 14 : direction === "prev" ? -14 : 0;
+  if (direction && playerTrackInfo) {
+    const ghost = document.createElement("div");
+    ghost.className = "ti-layer ti-abs ti-exit";
+    ghost.style.setProperty("--dx", `${-offset}px`);
+    const oldArtist = document.createElement("p");
+    oldArtist.className = "player-artist";
+    oldArtist.textContent = nowPlayingArtist.textContent;
+    const oldTitle = document.createElement("h3");
+    oldTitle.className = "player-title";
+    oldTitle.textContent = nowPlayingTitle.textContent;
+    ghost.append(oldArtist, oldTitle);
+    playerTrackInfo.appendChild(ghost);
+    window.setTimeout(() => ghost.remove(), PLAYER_LAYER_MS);
+  }
+  nowPlayingTitle.textContent = title;
+  nowPlayingArtist.textContent = artist;
+  if (direction) {
+    nowPlayingTitle.classList.remove("ti-enter");
+    nowPlayingArtist.classList.remove("ti-enter");
+    void nowPlayingTitle.offsetWidth;
+    nowPlayingTitle.style.setProperty("--dx", `${offset}px`);
+    nowPlayingArtist.style.setProperty("--dx", `${offset}px`);
+    nowPlayingTitle.classList.add("ti-enter");
+    nowPlayingArtist.classList.add("ti-enter");
+  }
+}
+
+function playerSetZoomed(zoomed) {
+  if (zoomed === playerWidget.zoomed || !playerCard) return;
+  playerWidget.zoomed = zoomed;
+  if (zoomed) {
+    // The card is moved to <body> so the fixed overlay is not trapped by the
+    // transformed / backdrop-filtered ancestors of the player band.
+    playerWidget.placeholder = document.createComment("music-player-card");
+    playerCard.parentNode?.insertBefore(playerWidget.placeholder, playerCard);
+    document.body.appendChild(playerCard);
+  } else if (playerWidget.placeholder?.parentNode) {
+    playerWidget.placeholder.parentNode.insertBefore(playerCard, playerWidget.placeholder);
+    playerWidget.placeholder.remove();
+    playerWidget.placeholder = null;
+  }
+  playerCard.classList.toggle("is-zoomed", zoomed);
+  document.body.classList.toggle("player-zoomed", zoomed);
+}
+
+function playerShuffledIds() {
+  const ids = state.tracks.map((track) => track.id);
+  const currentId = state.currentTrack?.id;
+  const first = ids.includes(currentId) ? currentId : ids[0];
+  if (first === undefined) return ids;
+  const rest = ids.filter((id) => id !== first);
+  for (let index = rest.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [rest[index], rest[swap]] = [rest[swap], rest[index]];
+  }
+  return [first, ...rest];
+}
+
+function playerOrder() {
+  if (!state.isShuffle) return state.tracks;
+  const byId = new Map(state.tracks.map((track) => [track.id, track]));
+  const order = state.playerOrder.map((id) => byId.get(id)).filter(Boolean);
+  return order.length === state.tracks.length ? order : state.tracks;
+}
+
+function playerToggleShuffle() {
+  state.isShuffle = !state.isShuffle;
+  state.playerOrder = state.isShuffle ? playerShuffledIds() : state.tracks.map((track) => track.id);
+  updatePlayerUi();
+}
+
+function playerCycleLoop() {
+  state.loopMode = state.loopMode === "off" ? "all" : state.loopMode === "all" ? "one" : "off";
+  audioPlayer.loop = state.loopMode === "one";
+  updatePlayerUi();
+}
+
+function playerSeekBy(delta) {
+  const duration = Number.isFinite(audioPlayer.duration) ? audioPlayer.duration : 0;
+  if (!duration) return;
+  audioPlayer.currentTime = Math.max(0, Math.min(duration, audioPlayer.currentTime + delta));
+  updateProgressUi();
+}
+
+function playerSeekFromPointer(event) {
+  const duration = Number.isFinite(audioPlayer.duration) ? audioPlayer.duration : 0;
+  if (!duration) return;
+  const rect = progressBar.getBoundingClientRect();
+  if (!rect.width) return;
+  const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  audioPlayer.currentTime = ratio * duration;
+  updateProgressUi();
+}
+
+function playerHandleKeydown(event) {
+  if (dashboard?.classList.contains("hidden")) return;
+  const target = event.target;
+  const tag = target instanceof HTMLElement ? target.tagName : "";
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  if (target instanceof HTMLElement && target.isContentEditable) return;
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  switch (event.key) {
+    case " ":
+      if (tag === "BUTTON") return;
+      event.preventDefault();
+      playPauseButton.click();
+      break;
+    case "ArrowRight":
+      event.preventDefault();
+      if (event.shiftKey) nextButton.click();
+      else playerSeekBy(5);
+      break;
+    case "ArrowLeft":
+      event.preventDefault();
+      if (event.shiftKey) previousButton.click();
+      else playerSeekBy(-5);
+      break;
+    case "s":
+    case "S":
+      shuffleButton.click();
+      break;
+    case "l":
+    case "L":
+      repeatButton.click();
+      break;
+    default:
+      break;
+  }
+}
+
+function initPlayerWidget() {
+  buildPlayerScales();
+  playerPushCover(null, null);
+  playerShowTrackInfo("Choose a song", "No listening session is active.", null);
+  const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const applyMotionPreference = () => {
+    playerWidget.reducedMotion = motionQuery.matches;
+  };
+  applyMotionPreference();
+  if (typeof motionQuery.addEventListener === "function") {
+    motionQuery.addEventListener("change", applyMotionPreference);
+  }
+  playerDiscMask?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    playerSetZoomed(!playerWidget.zoomed);
+  });
+  playerDiscMask?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      playerSetZoomed(!playerWidget.zoomed);
+    }
+  });
+  playerCard?.addEventListener("click", (event) => {
+    if (!event.target.closest(".player-disc-mask")) playerSetZoomed(false);
+  });
+  document.addEventListener("keydown", playerHandleKeydown);
+}
+
+function setAlbumArtForTrack(track, direction = null, artistLabel = null) {
   // Derived per-track art: always renders, no third-party image service,
   // deterministic for the same title/artist. (source.unsplash.com was retired.)
-  albumArt.src = buildTrackArtDataUri(track);
-  albumArt.alt = `${track.title || "Track"} album art`;
+  playerPushCover(track, direction);
+  const label = artistLabel ?? (track ? `${track.artist} · ${track.kind === "local" ? "local audio" : track.sourceType || "external"}` : "No listening session is active.");
+  playerShowTrackInfo(track ? track.title : "Choose a song", label, direction);
 }
 
 function renderStats(stats) {
@@ -838,9 +1668,7 @@ async function playRecommendation(recommendation) {
   state.lastAudioSeconds = 0;
 
   stopExternalTracking();
-  nowPlayingTitle.textContent = track.title;
-  nowPlayingArtist.textContent = `${track.artist} · youtube (temporary)`;
-  setAlbumArtForTrack(track);
+  setAlbumArtForTrack(track, null, `${track.artist} · youtube (temporary)`);
   updateProgressUi();
 
   audioPlayer.pause();
@@ -863,14 +1691,13 @@ async function playRecommendation(recommendation) {
   updatePlayerUi();
 }
 
-function playTrack(track) {
+function playTrack(track, direction = null) {
+  state.playerDirection = direction;
   stopExternalTracking();
   state.currentTrack = track;
   state.currentTrackTemporary = false;
   state.lastAudioSeconds = 0;
-  nowPlayingTitle.textContent = track.title;
-  nowPlayingArtist.textContent = `${track.artist} · ${track.kind === "local" ? "local audio" : track.sourceType}`;
-  setAlbumArtForTrack(track);
+  setAlbumArtForTrack(track, state.playerDirection, `${track.artist} · ${track.kind === "local" ? "local audio" : track.sourceType}`);
   updateProgressUi();
 
   if (track.kind === "local" || isDirectAudioUrl(track.playableUrl)) {
@@ -878,7 +1705,9 @@ function playTrack(track) {
     externalFrame.removeAttribute("src");
     playerStatus.textContent = "Playing inside Muzic.";
     audioPlayer.src = track.playableUrl;
-    audioPlayer.loop = state.isRepeat;
+    audioPlayer.loop = state.loopMode === "one";
+    playerAttachAnalyser(track.playableUrl);
+    playerTransitionSound(0.5);
     audioPlayer.play().catch(() => {
       playerStatus.textContent = "Press the play button to start audio. Browsers sometimes block autoplay.";
       updatePlayerUi();
@@ -974,21 +1803,44 @@ function stopExternalTracking() {
 
 function playRelativeTrack(direction) {
   if (!state.tracks.length) return;
+  if (direction < 0 && audioPlayer.currentTime > 3) {
+    // Widget behaviour: "previous" a few seconds into a track restarts it
+    // instead of jumping back to the track before it.
+    audioPlayer.currentTime = 0;
+    updateProgressUi();
+    return;
+  }
   if (!state.currentTrack) {
-    playTrack(state.tracks[0]);
+    playTrack(state.tracks[0], direction);
     return;
   }
-  const currentIndex = state.tracks.findIndex((track) => track.id === state.currentTrack.id);
-  if (state.isShuffle && direction > 0 && state.tracks.length > 1) {
-    let nextIndex = currentIndex;
-    while (nextIndex === currentIndex) {
-      nextIndex = Math.floor(Math.random() * state.tracks.length);
+  const order = playerOrder();
+  const position = order.findIndex((track) => track.id === state.currentTrack.id);
+  if (position === -1) {
+    playTrack(order[0], direction);
+    return;
+  }
+  const target = position + direction;
+  if (target < 0 || target >= order.length) {
+    if (state.loopMode === "all") {
+      playTrack(direction > 0 ? order[0] : order[order.length - 1], direction);
+      return;
     }
-    playTrack(state.tracks[nextIndex]);
+    if (state.loopMode === "one") {
+      if (audioPlayer.src) {
+        audioPlayer.currentTime = 0;
+        audioPlayer.play().catch(() => {});
+      }
+      return;
+    }
+    // Loop off: the ends of the list are hard stops.
+    audioPlayer.pause();
+    audioPlayer.currentTime = 0;
+    updateProgressUi();
+    updatePlayerUi();
     return;
   }
-  const nextIndex = (currentIndex + direction + state.tracks.length) % state.tracks.length;
-  playTrack(state.tracks[nextIndex]);
+  playTrack(order[target], direction);
 }
 
 function fileToBase64(file) {
@@ -1056,6 +1908,8 @@ authForm.addEventListener("submit", async (event) => {
     authForm.reset();
     setAuthStep("email");
     renderApp();
+    loadFavourites();
+    setDashboardView("home");
     await refreshDashboard();
   } catch (error) {
     showMessage(authMessage, error.message);
@@ -1068,16 +1922,22 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   audioPlayer.pause();
   audioPlayer.removeAttribute("src");
   state.user = null;
+  setAuthMode("login");
   state.tracks = [];
   state.recommendations = [];
   state.activeRecommendationId = null;
+  state.playlists = [];
+  state.favourites = [];
+  state.searchQuery = "";
+  if (librarySearch) librarySearch.value = "";
+  if (topbarSearch) topbarSearch.classList.add("hidden");
   renderRecommendations();
   renderRecommendationEngine();
   state.currentTrack = null;
   state.currentTrackTemporary = false;
   externalFrame.removeAttribute("src");
   externalFrame.classList.remove("hidden");
-  albumArt.src = DEFAULT_ALBUM_ART;
+  playerResetCover();
   nowPlayingTitle.textContent = "Choose a song";
   nowPlayingArtist.textContent = "No listening session is active.";
   playerStatus.textContent = "Upload a local audio file or use a direct audio URL for in-app playback.";
@@ -1172,12 +2032,16 @@ audioPlayer.addEventListener("ended", async () => {
   state.lastAudioSeconds = current;
   if (delta > 0) await logListening(delta);
   updatePlayerUi();
-  if (!state.isRepeat) playRelativeTrack(1);
+  if (state.loopMode === "one") {
+    audioPlayer.currentTime = 0;
+    audioPlayer.play().catch(() => {});
+    return;
+  }
+  playRelativeTrack(1);
 });
 
-progressBar.addEventListener("input", () => {
-  audioPlayer.currentTime = Number(progressBar.value || 0);
-  updateProgressUi();
+progressBar.addEventListener("click", (event) => {
+  playerSeekFromPointer(event);
 });
 
 playPauseButton.addEventListener("click", () => {
@@ -1191,29 +2055,24 @@ playPauseButton.addEventListener("click", () => {
     return;
   }
   if (audioPlayer.paused) {
+    playerAttachAnalyser(audioPlayer.currentSrc || state.currentTrack?.playableUrl);
     audioPlayer.play().catch(() => {});
   } else {
     audioPlayer.pause();
+    playerDetachAnalyser();
   }
 });
 
 shuffleButton.addEventListener("click", () => {
-  state.isShuffle = !state.isShuffle;
-  updatePlayerUi();
+  playerToggleShuffle();
 });
 
 repeatButton.addEventListener("click", () => {
-  state.isRepeat = !state.isRepeat;
-  audioPlayer.loop = state.isRepeat;
-  updatePlayerUi();
+  playerCycleLoop();
 });
 
 previousButton.addEventListener("click", () => playRelativeTrack(-1));
 nextButton.addEventListener("click", () => playRelativeTrack(1));
-
-albumArt.addEventListener("error", () => {
-  albumArt.src = DEFAULT_ALBUM_ART;
-});
 
 addToLibraryButton?.addEventListener("click", async () => {
   if (!state.currentTrackTemporary || !state.currentTrack) return;
@@ -1266,6 +2125,8 @@ window.addEventListener("resize", renderRecommendationEngine);
 setAuthStep("email");
 updateTrackFormMode();
 initAlbumHero();
+initDock();
+initPlayerWidget();
 initDottedSurface();
 startRecommendationEngine();
 updateEngineRotationControl();

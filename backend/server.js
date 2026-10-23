@@ -21,6 +21,11 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
@@ -1136,6 +1141,35 @@ async function handleApiRequest(req, res, url) {
   return false;
 }
 
+/**
+ * Parse a single-range `Range: bytes=start-end` header.
+ * Returns { start, end } (inclusive), null when there is no usable range and
+ * "invalid" when the range cannot be satisfied.
+ */
+function parseRangeHeader(header, size) {
+  if (!header || typeof header !== "string") return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+  const [, rawStart, rawEnd] = match;
+  if (rawStart === "" && rawEnd === "") return null;
+  let start;
+  let end;
+  if (rawStart === "") {
+    // Suffix range: the last N bytes.
+    const suffix = Number(rawEnd);
+    if (!Number.isFinite(suffix) || suffix <= 0) return "invalid";
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(rawStart);
+    end = rawEnd === "" ? size - 1 : Number(rawEnd);
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return "invalid";
+  if (start > end || start >= size) return "invalid";
+  end = Math.min(end, size - 1);
+  return { start, end };
+}
+
 function serveStatic(req, res, url) {
   let pathname = decodeURIComponent(url.pathname);
   if (pathname === "/") pathname = "/index.html";
@@ -1151,7 +1185,32 @@ function serveStatic(req, res, url) {
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     const ext = path.extname(filePath).toLowerCase();
     const type = MIME_TYPES[ext] || "application/octet-stream";
-    res.writeHead(200, { "Content-Type": type });
+    const stat = fs.statSync(filePath);
+    // Media elements (the music player) need a known length and byte ranges,
+    // otherwise the browser cannot report a duration or seek inside a file.
+    const range = parseRangeHeader(req.headers.range, stat.size);
+    if (range === "invalid") {
+      res.writeHead(416, { "Content-Range": `bytes */${stat.size}` });
+      res.end();
+      return;
+    }
+    if (range) {
+      res.writeHead(206, {
+        "Content-Type": type,
+        "Content-Length": range.end - range.start + 1,
+        "Content-Range": `bytes ${range.start}-${range.end}/${stat.size}`,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-cache"
+      });
+      fs.createReadStream(filePath, { start: range.start, end: range.end }).pipe(res);
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": type,
+      "Content-Length": stat.size,
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "no-cache"
+    });
     fs.createReadStream(filePath).pipe(res);
     return;
   }

@@ -94,12 +94,12 @@ body:not(.auth-active) .player-band {
   backdrop-filter: blur(14px);
 }
 
-body:not(.auth-active) .song-copy p:not(.eyebrow),
+body:not(.auth-active) .player-artist,
 body:not(.auth-active) .track-item span,
 body:not(.auth-active) .recommendation-reason,
 body:not(.auth-active) .stat-list span,
 body:not(.auth-active) label,
-body:not(.auth-active) .player-progress span {
+body:not(.auth-active) .player-time span {
   color: var(--muted);
 }
 
@@ -143,39 +143,32 @@ body:not(.auth-active) .tab.active {
   color: #050505;
 }
 
-body:not(.auth-active) .progress-bar {
+body:not(.auth-active) .player-bar {
   background: rgba(255, 255, 255, 0.16);
-  background-image: linear-gradient(#33d6bd, #33d6bd);
-  background-repeat: no-repeat;
-  background-size: var(--progress) 100%;
 }
 
-body:not(.auth-active) .progress-bar::-webkit-slider-thumb {
-  border-color: #33d6bd;
-  background: #050505;
+body:not(.auth-active) .player-bar-fill {
+  background: #33d6bd;
 }
 
-body:not(.auth-active) .progress-bar::-moz-range-thumb {
-  border-color: #33d6bd;
-  background: #050505;
+body:not(.auth-active) .player-scales circle {
+  fill: #33d6bd;
 }
 
-body:not(.auth-active) .icon-button,
-body:not(.auth-active) .play-button {
+body:not(.auth-active) .player-ctrl {
   color: #fff;
 }
 
-body:not(.auth-active) .icon-button.muted {
-  color: rgba(255, 255, 255, 0.54);
-}
-
-body:not(.auth-active) .icon-button.active {
+body:not(.auth-active) .player-ctrl.is-active {
   color: #33d6bd;
-  background: rgba(51, 214, 189, 0.12);
 }
 
-body:not(.auth-active) .play-button {
+body:not(.auth-active) .player-ctrl-play {
   background: #33d6bd;
+  color: #041211;
+}
+
+body:not(.auth-active) .player-ctrl-play:hover {
   color: #041211;
 }
 
@@ -651,202 +644,370 @@ select:focus {
 }
 
 .player-band {
-  display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(280px, 1fr);
-  gap: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
+  gap: 22px;
   padding: 24px;
   border-radius: 8px;
   background: #171717;
   color: #fff;
 }
 
+/* ── Music player widget ────────────────────────────────────────────────
+   Vanilla port of the "music-player-widget" component: a spinning disc with
+   layered cover transitions, the 10x10 "scales" equaliser, sliding track
+   info, a seekable bar and shuffle / loop controls. Colours come from the
+   theme variables so the widget reads correctly in light and dark mode. */
+
 .music-player-card {
-  width: min(100%, 390px);
+  position: relative;
+  flex: 0 1 380px;
+  width: min(100%, 380px);
   margin: 0 auto;
-  padding: 24px;
+  padding: 26px 24px 20px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  background: #fffdfa;
+  border-radius: 26px;
+  background: var(--panel);
   color: var(--ink);
   box-shadow: 0 22px 55px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 16px;
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 320ms ease, background 320ms ease;
 }
 
 .music-player-card audio {
   display: none;
 }
 
-.album-art-wrap {
-  width: clamp(180px, 48vw, 224px);
-  height: clamp(180px, 48vw, 224px);
-  margin-bottom: 24px;
-  border-radius: 999px;
-  padding: 8px;
-  background: conic-gradient(from 120deg, #0b6b5f, #171717, #c84f31, #0b6b5f);
-  box-shadow: 0 20px 36px rgba(23, 23, 23, 0.2);
-}
-
-.album-art-wrap.playing {
-  animation: album-spin 15s linear infinite;
-}
-
-.album-art-wrap img {
+/* Expanded ("zoomed") state: the artwork takes over the viewport. */
+.music-player-card.is-zoomed {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
   width: 100%;
   height: 100%;
-  border-radius: inherit;
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  background: rgba(6, 6, 8, 0.94);
+  backdrop-filter: blur(22px);
+  box-shadow: none;
+  justify-content: center;
+  gap: 0;
+}
+
+.music-player-card.is-zoomed .player-disc-mask {
+  transform: scale(2.3);
+}
+
+.music-player-card.is-zoomed .player-info,
+.music-player-card.is-zoomed .player-status {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+/* ── Disc ─────────────────────────────────────────────────────────────── */
+
+.player-disc-mask {
+  position: relative;
+  flex: none;
+  width: clamp(186px, 46vw, 232px);
+  height: clamp(186px, 46vw, 232px);
+  padding: 9px;
+  border: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 120deg, #0b6b5f, #171717, #c84f31, #0b6b5f);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.32);
+  cursor: pointer;
+  transition: transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 320ms ease;
+}
+
+.player-disc-mask:hover {
+  transform: scale(1.03);
+}
+
+.music-player-card.is-zoomed .player-disc-mask:hover {
+  transform: scale(2.3);
+}
+
+.player-disc-mask:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 6px;
+}
+
+.player-disc {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #171717;
+  will-change: transform;
+  transform: scale(1.01) rotate(0deg);
+}
+
+.player-cover {
+  position: absolute;
+  inset: 0;
   display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
   object-fit: cover;
   background: #171717;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-.song-copy {
+.player-cover.cover-enter {
+  animation: cover-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.player-cover.cover-exit {
+  animation: cover-out 620ms ease both;
+}
+
+@keyframes cover-in {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cover-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+.player-disc-hole {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 21%;
+  height: 21%;
+  border-radius: 50%;
+  background: #0a0a0c;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 3px 12px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.player-disc-spindle {
+  display: block;
+  width: 24%;
+  height: 24%;
+  margin: 38% auto;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Info column ──────────────────────────────────────────────────────── */
+
+.player-info {
   width: 100%;
-  text-align: center;
-  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: opacity 220ms ease;
 }
 
-.song-copy .eyebrow {
-  margin-bottom: 6px;
-}
-
-.song-copy h3 {
-  margin-bottom: 6px;
-  font-size: 1.5rem;
-  line-height: 1.2;
-}
-
-.song-copy p:not(.eyebrow) {
-  margin-bottom: 0;
-  color: var(--muted);
-}
-
-.player-status {
+.player-scales {
   width: 100%;
-  min-height: 38px;
-  margin: 0 0 16px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.35;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-scales svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.player-scales circle {
+  fill: var(--accent);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.player-track-info {
+  position: relative;
+  width: 100%;
+  min-height: 62px;
+  overflow: hidden;
   text-align: center;
 }
+
+.ti-layer {
+  width: 100%;
+}
+
+.ti-layer.ti-abs {
+  position: absolute;
+  inset: 0;
+}
+
+.player-artist {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.player-title {
+  margin: 0;
+  font-size: 1.4rem;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+}
+
+.ti-enter {
+  animation: ti-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.ti-exit {
+  animation: ti-out 420ms ease both;
+}
+
+@keyframes ti-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--dx, 0px));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ti-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(var(--dx, 0px));
+  }
+}
+
+/* Reduced motion: the cover swap and the sliding title happen instantly
+   instead of animating, and the old layer disappears right away. */
+@media (prefers-reduced-motion: reduce) {
+  .player-cover.cover-enter,
+  .player-cover.cover-exit,
+  .player-title.ti-enter,
+  .player-artist.ti-enter,
+  .ti-layer.ti-exit {
+    animation: none;
+  }
+
+  .player-cover.cover-exit,
+  .ti-layer.ti-exit {
+    opacity: 0;
+  }
+}
+
+/* ── Progress ─────────────────────────────────────────────────────────── */
 
 .player-progress {
   width: 100%;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.player-progress span {
+.player-bar {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.28);
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* The visible bar is a thin line; this keeps a comfortable touch target
+   around it so the track can be scrubbed with a finger. */
+.player-bar::before {
+  content: "";
+  position: absolute;
+  inset: -11px 0;
+}
+
+.player-bar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.player-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+.player-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
-.player-progress span:last-child {
-  text-align: right;
+.player-time-sep {
+  opacity: 0.6;
 }
 
-.progress-bar {
-  --progress: 0%;
-  width: 100%;
-  min-height: 8px;
-  height: 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: var(--line);
-  background-image: linear-gradient(var(--accent), var(--accent));
-  background-repeat: no-repeat;
-  background-size: var(--progress) 100%;
-  appearance: none;
-  cursor: pointer;
-}
-
-.progress-bar::-webkit-slider-thumb {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--accent);
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-}
-
-.progress-bar::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--accent);
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-}
+/* ── Controls ─────────────────────────────────────────────────────────── */
 
 .player-controls {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(14px, 4vw, 22px);
+  gap: clamp(8px, 2.6vw, 18px);
 }
 
-.icon-button,
-.play-button {
+.player-ctrl {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--ink);
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
   background: transparent;
+  color: var(--ink);
+  cursor: pointer;
   transition: color 160ms ease, transform 160ms ease, background 160ms ease;
 }
 
-.icon-button {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-}
-
-.icon-button.muted {
-  color: var(--muted);
-}
-
-.icon-button.active {
-  color: var(--accent);
-  background: var(--soft);
-}
-
-.icon-button:hover,
-.play-button:hover {
-  transform: scale(1.08);
-}
-
-.icon-button:active,
-.play-button:active {
-  transform: scale(0.95);
-}
-
-.play-button {
-  width: 64px;
-  height: 64px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 14px 26px rgba(11, 107, 95, 0.3);
-}
-
-.icon-button svg,
-.play-button svg {
-  width: 24px;
-  height: 24px;
+.player-ctrl svg {
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -854,21 +1015,68 @@ select:focus {
   stroke-linejoin: round;
 }
 
-.play-button svg {
-  width: 32px;
-  height: 32px;
-  fill: currentColor;
-  stroke: currentColor;
+.player-ctrl:hover {
+  transform: scale(1.12);
+  color: var(--accent);
 }
 
-@keyframes album-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.player-ctrl:active {
+  transform: scale(0.94);
+}
+
+.player-ctrl:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.player-ctrl.is-active {
+  color: var(--accent);
+}
+
+.player-ctrl-play {
+  width: 56px;
+  height: 56px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(11, 107, 95, 0.32);
+}
+
+.player-ctrl-play:hover {
+  color: #fff;
+}
+
+.player-ctrl-play svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.player-ctrl-loop .loop-one {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #04120f;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.player-ctrl-loop.mode-one .loop-one {
+  display: flex;
 }
 
 .external-player {
   display: grid;
+  flex: 1 1 320px;
+  min-width: 280px;
   gap: 12px;
 }
 
@@ -1231,7 +1439,6 @@ select:focus {
 @media (max-width: 860px) {
   .auth-view,
   .grid,
-  .player-band,
   .stats-grid {
     grid-template-columns: 1fr;
   }
@@ -1344,18 +1551,376 @@ select:focus {
   line-height: 1.45;
 }
 
-.play-button.external-mode {
+.player-ctrl-play.external-mode {
   font-size: 0;
 }
 
-.play-button.external-mode::after {
+.player-ctrl-play.external-mode::after {
   content: "↗";
   font-size: 1.7rem;
   line-height: 1;
 }
 
-.play-button.external-mode svg {
+.player-ctrl-play.external-mode svg {
   display: none;
+}
+
+/* ── Subway door intro: the hero opens on closed doors carrying the headline;
+     scrolling slides them apart to reveal album covers + login/signup ── */
+
+.subway-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  transform: scale(1);
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Light spilling through the gap while the doors part. JS fades it with the
+   opening amount (peaks mid-open, clears once the way is wide). */
+.subway-glow {
+  position: absolute;
+  top: -6%;
+  bottom: -6%;
+  left: 50%;
+  z-index: 0;
+  width: clamp(180px, 34vw, 560px);
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side at 50% 50%, rgba(255, 92, 208, 0.9), rgba(96, 214, 255, 0.42) 45%, rgba(126, 84, 255, 0) 100%);
+  filter: blur(18px);
+  opacity: 0;
+  will-change: opacity;
+}
+
+.subway-door {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 50.5%;
+  overflow: hidden;
+  will-change: transform;
+  /* top → bottom: wear, magenta+cyan street reflection, neon-kissed specular
+     sweep, brushed grain, panel grooves, top light falloff, dark steel base */
+  background-image:
+    url("/textures/steel-scratches.svg"),
+    radial-gradient(40% 15% at 32% 86%, rgba(255, 64, 175, 0.13), rgba(255, 64, 175, 0) 75%),
+    radial-gradient(40% 15% at 70% 80%, rgba(64, 225, 255, 0.1), rgba(64, 225, 255, 0) 75%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22) 0%, rgba(150, 240, 255, 0.12) 14%, rgba(255, 255, 255, 0.05) 34%, rgba(0, 0, 0, 0.1) 52%, rgba(255, 120, 225, 0.08) 72%, rgba(255, 255, 255, 0.03) 86%, rgba(0, 0, 0, 0.24) 100%),
+    url("/textures/steel-grain.svg"),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 78.6%, rgba(0, 0, 0, 0.4) 79.1%, rgba(255, 255, 255, 0.07) 79.8%, rgba(255, 255, 255, 0) 80.4%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 86.5%, rgba(0, 0, 0, 0.36) 87%, rgba(255, 255, 255, 0.05) 87.6%, rgba(255, 255, 255, 0) 88.2%),
+    linear-gradient(180deg, rgba(178, 226, 255, 0.12), rgba(178, 226, 255, 0) 22%),
+    linear-gradient(180deg, #3d4452 0%, #353c49 30%, #2c323e 62%, #252b35 84%, #1e232c 100%);
+  background-size: 600px 660px, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-position: 0 0, center, center, center, 0 0, 0 0, 0 0, 0 0, 0 0;
+  background-blend-mode: normal, normal, normal, normal, overlay, normal, normal, normal, normal;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    inset 0 34px 42px -36px rgba(0, 0, 0, 0.8),
+    inset 0 -50px 54px -44px rgba(0, 0, 0, 0.7),
+    0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.subway-door-left {
+  left: 0;
+}
+
+.subway-door-right {
+  right: 0;
+  /* offset the wear texture so the leaves don't mirror-match */
+  background-position: -150px -80px, center, center, center, 0 0, 0 0, 0 0, 0 0, 0 0;
+}
+
+/* Polished edge treatment: cyan-lit bevel at the outer edge, shading into the
+   meeting edge with a faint magenta neon kiss at the seam */
+.subway-door-left::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(190, 246, 255, 0.3) 0 2px, rgba(255, 255, 255, 0) 2px 26%, rgba(0, 0, 0, 0.2) 74%, rgba(255, 76, 180, 0.14) 97%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+.subway-door-right::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(270deg, rgba(190, 246, 255, 0.3) 0 2px, rgba(255, 255, 255, 0) 2px 26%, rgba(0, 0, 0, 0.2) 74%, rgba(255, 76, 180, 0.14) 97%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* Rivet row following the window frame, like the reference car */
+.subway-door::after {
+  content: "";
+  position: absolute;
+  top: calc(8% - 7px);
+  bottom: calc(22% - 7px);
+  left: calc(17% - 7px);
+  right: calc(17% - 7px);
+  border-radius: calc(clamp(16px, 2.6vw, 30px) + 7px);
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(26, 30, 40, 0.8) 0 1.5px, rgba(255, 255, 255, 0.45) 2.1px 2.8px, rgba(255, 255, 255, 0) 3.4px),
+    radial-gradient(circle at 50% 50%, rgba(26, 30, 40, 0.8) 0 1.5px, rgba(255, 255, 255, 0.45) 2.1px 2.8px, rgba(255, 255, 255, 0) 3.4px),
+    radial-gradient(circle at 50% 50%, rgba(26, 30, 40, 0.8) 0 1.5px, rgba(255, 255, 255, 0.45) 2.1px 2.8px, rgba(255, 255, 255, 0) 3.4px),
+    radial-gradient(circle at 50% 50%, rgba(26, 30, 40, 0.8) 0 1.5px, rgba(255, 255, 255, 0.45) 2.1px 2.8px, rgba(255, 255, 255, 0) 3.4px);
+  background-size: 17px 7px, 17px 7px, 7px 17px, 7px 17px;
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-position: top, bottom, left, right;
+  pointer-events: none;
+}
+
+/* Night glass with punk-city neon burning through the condensation:
+   magenta/cyan signs, purple haze, distant bokeh; beaded water on top */
+.door-window {
+  position: absolute;
+  top: 8%;
+  bottom: 22%;
+  left: 17%;
+  right: 17%;
+  overflow: hidden;
+  border: 3px solid rgba(148, 158, 176, 0.9);
+  border-radius: clamp(16px, 2.6vw, 30px);
+  background:
+    url("/textures/condensation.svg"),
+    linear-gradient(180deg, rgba(172, 208, 255, 0.16), rgba(172, 208, 255, 0.05) 30%, rgba(172, 208, 255, 0) 52%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 34%),
+    radial-gradient(circle at 80% 24%, rgba(255, 70, 130, 0.5) 0 5px, rgba(255, 70, 130, 0) 16px),
+    radial-gradient(circle at 21% 35%, rgba(70, 235, 255, 0.42) 0 4px, rgba(70, 235, 255, 0) 14px),
+    radial-gradient(34% 14% at 30% 60%, rgba(255, 60, 170, 0.42), rgba(255, 60, 170, 0) 80%),
+    radial-gradient(26% 11% at 72% 42%, rgba(60, 225, 255, 0.34), rgba(60, 225, 255, 0) 80%),
+    radial-gradient(120% 85% at 66% 30%, rgba(128, 88, 255, 0.3), rgba(128, 88, 255, 0) 55%),
+    linear-gradient(180deg, rgba(46, 56, 86, 0.55), rgba(9, 12, 22, 0.82));
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    inset 0 10px 30px rgba(20, 26, 40, 0.35),
+    inset 0 -12px 30px rgba(20, 26, 40, 0.3),
+    0 0 0 4px rgba(52, 58, 72, 0.95),
+    0 0 0 5px rgba(255, 255, 255, 0.18),
+    0 12px 26px rgba(0, 0, 0, 0.35);
+}
+
+.door-rain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.95;
+  /* two organic droplet fields at different scales — no regular grid */
+  background-image:
+    url("/textures/rain-glass.svg"),
+    url("/textures/rain-glass.svg");
+  background-size: 380px 540px, 240px 340px;
+  background-repeat: repeat, repeat;
+  background-position: 0 0, -60px -90px;
+}
+
+.subway-door-right .door-rain {
+  background-position: -70px -36px, -150px -210px;
+}
+
+/* Handrail beside the inner edge of each leaf */
+.door-handle {
+  position: absolute;
+  top: 33%;
+  height: 32%;
+  width: clamp(6px, 0.65vw, 10px);
+  border-radius: 999px;
+  background-image:
+    linear-gradient(180deg, rgba(12, 14, 20, 0.5), rgba(12, 14, 20, 0) 13%, rgba(12, 14, 20, 0) 87%, rgba(12, 14, 20, 0.55)),
+    linear-gradient(90deg, #32363f 0%, #c3cbd9 20%, #f4f7fc 32%, #97a0b2 50%, #cbd3e0 63%, #4c5260 86%, #23262e 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.subway-door-left .door-handle {
+  right: 5%;
+}
+
+.subway-door-right .door-handle {
+  left: 5%;
+}
+
+/* Rubber sealing strip along the meeting edge */
+.door-seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: clamp(6px, 1vw, 15px);
+}
+
+.subway-door-left .door-seam {
+  right: 0;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.85));
+}
+
+.subway-door-right .door-seam {
+  left: 0;
+  background: linear-gradient(270deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.85));
+}
+
+/* Dark enamel transit plaque with printed ink and screw heads */
+.door-sign-strip {
+  position: absolute;
+  top: 3.4%;
+  left: 17%;
+  right: 17%;
+  z-index: 2;
+  overflow: hidden;
+  padding: clamp(4px, 0.8vh, 8px) clamp(14px, 2vw, 26px);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  border-radius: 5px;
+  background-image:
+    url("/textures/steel-grain.svg"),
+    linear-gradient(180deg, #262a33 0%, #1a1e26 55%, #12151b 100%);
+  background-size: 100% 100%, 100% 100%;
+  background-blend-mode: overlay, normal;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.4),
+    0 3px 9px rgba(0, 0, 0, 0.55);
+  color: rgba(236, 241, 250, 0.82);
+  font-size: clamp(6px, 0.85vw, 11px);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.door-sign-strip::before,
+.door-sign-strip::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e8edf5, #9aa1ad 55%, #4d535e);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.door-sign-strip::before {
+  left: 6px;
+}
+
+.door-sign-strip::after {
+  right: 6px;
+}
+
+.subway-door-right .door-sign-strip {
+  right: 19%;
+}
+
+.door-emergency-badge {
+  position: absolute;
+  top: 3.4%;
+  right: 4%;
+  z-index: 2;
+  padding: clamp(5px, 0.9vh, 9px) clamp(5px, 0.6vw, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 45%),
+    linear-gradient(180deg, #cb4637, #8f2a1f);
+  color: rgba(255, 240, 236, 0.95);
+  font-size: clamp(6px, 0.7vw, 9px);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), 0 0 16px rgba(255, 78, 78, 0.4);
+}
+
+/* Fixed door frame: the leaves slide out behind these */
+.subway-jamb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: clamp(14px, 2.6vw, 40px);
+  background-image:
+    radial-gradient(circle at 72% 50%, rgba(0, 0, 0, 0.75) 0 1.8px, rgba(255, 255, 255, 0.16) 2.4px 3.2px, rgba(0, 0, 0, 0) 3.8px),
+    url("/textures/steel-grain.svg"),
+    linear-gradient(90deg, #212630, #363d4b 55%, #242a34);
+  background-size: 12px 78px, 100% 100%, 100% 100%;
+  background-repeat: repeat-y, no-repeat, no-repeat;
+  background-position: right 2px center, 0 0, 0 0;
+  background-blend-mode: normal, overlay, normal;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 8px 0 24px rgba(0, 0, 0, 0.5);
+}
+
+.subway-jamb-left {
+  left: 0;
+}
+
+.subway-jamb-right {
+  right: 0;
+  background-image:
+    radial-gradient(circle at 28% 50%, rgba(0, 0, 0, 0.75) 0 1.8px, rgba(255, 255, 255, 0.16) 2.4px 3.2px, rgba(0, 0, 0, 0) 3.8px),
+    url("/textures/steel-grain.svg"),
+    linear-gradient(270deg, #212630, #363d4b 55%, #242a34);
+  background-size: 12px 78px, 100% 100%, 100% 100%;
+  background-repeat: repeat-y, no-repeat, no-repeat;
+  background-position: left 2px center, 0 0, 0 0;
+  background-blend-mode: normal, overlay, normal;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.6), -8px 0 24px rgba(0, 0, 0, 0.5);
+}
+
+.subway-lintel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  height: clamp(14px, 2.6vh, 30px);
+  background-image:
+    radial-gradient(circle at 50% 58%, rgba(0, 0, 0, 0.75) 0 1.6px, rgba(255, 255, 255, 0.14) 2.2px 3px, rgba(0, 0, 0, 0) 3.6px),
+    url("/textures/steel-grain.svg"),
+    linear-gradient(180deg, #171b23 0%, #2d3441 70%, #20252f 100%);
+  background-size: 84px 100%, 100% 100%, 100% 100%;
+  background-repeat: repeat-x, no-repeat, no-repeat;
+  background-position: 24px 0, 0 0, 0 0;
+  background-blend-mode: normal, overlay, normal;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Door floor track: two recessed rails the leaves slide along */
+.subway-sill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  height: clamp(12px, 2.2vh, 26px);
+  background-image:
+    url("/textures/steel-grain.svg"),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0 36%, rgba(255, 255, 255, 0.16) 39%, rgba(0, 0, 0, 0.5) 44%, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0 66%, rgba(255, 255, 255, 0.1) 69%, rgba(0, 0, 0, 0.45) 74%, rgba(255, 255, 255, 0) 75%),
+    linear-gradient(180deg, #12161d 0%, #232936 40%, #171c25 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-blend-mode: overlay, normal, normal, normal;
+  box-shadow: inset 0 10px 14px -10px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 -6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* Photographic grain over the whole scene for a camera-captured feel. It lives
+   on the hero (not the scene) so it stays 1:1 while the camera flies in. */
+.album-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: url("/textures/film-grain.svg") 0 0 / 240px 240px repeat;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+/* Without motion, the doors simply start open (JS never scrubs them) */
+@media (prefers-reduced-motion: reduce) {
+  .subway-door-left { transform: translate3d(-102%, 0, 0); }
+  .subway-door-right { transform: translate3d(102%, 0, 0); }
 }
 
 /* ── Album hero: scroll-scrubbed album photos on the login/signup page ── */
@@ -1368,32 +1933,47 @@ select:focus {
   pointer-events: none;
 }
 
-.album-hero-frames {
+/* The wall behind the doorway. Drop the real poster collage in as
+   /assets/muzic-collage.jpg and it automatically replaces the shipped SVG
+   fallback (the JPG layer sits on top; a missing file just doesn't paint). */
+.album-hero-backdrop {
   position: absolute;
   inset: 0;
+  z-index: 0;
+  background-color: #8b1e1e;
+  background-image: url("/assets/muzic-collage.jpg"), url("/assets/muzic-collage.svg");
+  background-size: cover;
+  background-position: 72% center;
+  background-repeat: no-repeat;
   transform: scale(1);
   transform-origin: center center;
-  will-change: transform;
-}
-
-.album-hero-frames img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  will-change: opacity;
-}
-
-.album-hero-frames img:first-child {
-  opacity: 1;
+  will-change: transform, filter;
 }
 
 .album-hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(5, 7, 13, 0.55), rgba(5, 7, 13, 0.15) 30%, rgba(5, 7, 13, 0.25) 70%, rgba(5, 7, 13, 0.72));
+  z-index: 1;
+  background:
+    radial-gradient(58% 46% at 14% 18%, rgba(255, 60, 170, 0.14), rgba(255, 60, 170, 0) 62%),
+    radial-gradient(58% 46% at 86% 26%, rgba(64, 220, 255, 0.11), rgba(64, 220, 255, 0) 62%),
+    linear-gradient(180deg, rgba(5, 7, 13, 0.6), rgba(5, 7, 13, 0.24) 30%, rgba(5, 7, 13, 0.34) 70%, rgba(5, 7, 13, 0.8));
+  will-change: opacity;
+}
+
+/* Radial speed streaks that flare up while the camera flies through the
+   doorway — pure decoration, driven by the flight progress in JS. */
+.album-hero-streaks {
+  position: absolute;
+  inset: -30%;
+  z-index: 3;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 255, 255, 0.5) 0deg 0.28deg, rgba(255, 255, 255, 0) 0.28deg 2.6deg);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 16%, #000 74%);
+  mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 16%, #000 74%);
+  opacity: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  will-change: transform, opacity;
 }
 
 .album-hero-title {
@@ -1406,14 +1986,30 @@ select:focus {
   margin: 0;
   padding: 0 6%;
   text-align: center;
+  flex-direction: column;
+  gap: clamp(8px, 1.8vh, 20px);
   color: #f2f4f8;
   font-size: clamp(30px, 7vw, 96px);
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.02em;
-  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  text-transform: uppercase;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 48px rgba(255, 74, 190, 0.3);
   pointer-events: none;
   will-change: transform, filter, opacity;
+}
+
+.album-hero-title-main {
+  font-weight: 900;
+}
+
+.album-hero-title-sub {
+  font-size: clamp(10px, 1.35vw, 15px);
+  font-weight: 700;
+  letter-spacing: 0.52em;
+  text-indent: 0.52em;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 2px 16px rgba(0, 0, 0, 0.55);
 }
 
 .album-hero-hint {
@@ -1426,7 +2022,8 @@ select:focus {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: rgba(240, 244, 248, 0.75);
+  color: rgba(240, 244, 248, 0.8);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
   font-size: clamp(10px, 1.4vw, 12px);
   font-weight: 600;
   letter-spacing: 0.3em;
@@ -1476,4 +2073,323 @@ select:focus {
 
 .auth-view.hero-driven {
   touch-action: none;
+}
+
+/* ── Dashboard dock + dock-driven views ─────────────────────────────────────
+   A floating macOS-style dock for the signed-in app. The items mirror the
+   React/shadcn "dock-two" component: glassy pill, hover lift, tap scale and a
+   tooltip that fades in above each icon. */
+
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 40;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dock-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: rgba(14, 14, 17, 0.72);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+  animation: dock-float 4s ease-in-out infinite;
+}
+
+@keyframes dock-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.dock-item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.74);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 180ms ease, color 180ms ease;
+}
+
+.dock-item svg {
+  width: 21px;
+  height: 21px;
+}
+
+.dock-item:hover,
+.dock-item:focus-visible {
+  transform: translateY(-4px) scale(1.08);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.dock-item:active {
+  transform: translateY(-1px) scale(0.94);
+}
+
+.dock-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dock-item.is-active {
+  background: rgba(51, 214, 189, 0.16);
+  color: #33d6bd;
+}
+
+.dock-item-accent {
+  background: linear-gradient(135deg, #33d6bd, #0b6b5f);
+  color: #04120f;
+  box-shadow: 0 8px 20px rgba(11, 107, 95, 0.35);
+}
+
+.dock-item-accent:hover,
+.dock-item-accent:focus-visible {
+  background: linear-gradient(135deg, #4ee7cd, #0b6b5f);
+  color: #04120f;
+}
+
+.dock-tip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(5px);
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(18, 18, 21, 0.96);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.dock-item:hover .dock-tip,
+.dock-item:focus-visible .dock-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Keep the last row of the app clear of the floating dock */
+body:not(.auth-active) .app-shell {
+  padding-bottom: 124px;
+}
+
+/* Search field in the top bar */
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: min(320px, 40vw);
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.topbar-search svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.topbar-search input {
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.topbar-search input:focus {
+  outline: none;
+}
+
+.topbar-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(51, 214, 189, 0.16);
+}
+
+/* Dock-driven views */
+.view-panel {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.playlist-create {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+
+.playlist-create label {
+  flex: 1;
+}
+
+.playlist-list {
+  display: grid;
+  gap: 14px;
+}
+
+.playlist-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.playlist-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playlist-card-head h4 {
+  margin: 0;
+  color: #fff;
+}
+
+.playlist-tracks {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playlist-track {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.9rem;
+}
+
+.playlist-add {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
+.playlist-add select {
+  flex: 1;
+}
+
+.favourite-button {
+  color: var(--muted);
+}
+
+.favourite-button.is-favourite {
+  color: #ff6b81;
+}
+
+.favourite-button.is-favourite svg {
+  fill: currentColor;
+}
+
+.profile-facts {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.profile-facts div {
+  display: grid;
+  gap: 4px;
+}
+
+.profile-facts dt {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.profile-facts dd {
+  margin: 0;
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .dock {
+    bottom: 14px;
+  }
+
+  .dock-inner {
+    gap: 2px;
+    padding: 6px;
+    border-radius: 18px;
+  }
+
+  .dock-item {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  .dock-item svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .dock-tip {
+    font-size: 10px;
+  }
+
+  body:not(.auth-active) .app-shell {
+    padding-bottom: 104px;
+  }
+
+  .topbar-search {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .playlist-create,
+  .playlist-add {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-inner {
+    animation: none;
+  }
+
+  .dock-item {
+    transition: none;
+  }
 }

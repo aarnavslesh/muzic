@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420">
+<!-- Fine brushed-steel grain: very low contrast, long vertical strokes.
+     Kept faint so polished steel reads smooth, not grained like wood. -->
+<filter id="brushed" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="1.05 0.004" numOctaves="3" seed="17"/>
+<feColorMatrix type="saturate" values="0"/>
+<feComponentTransfer><feFuncA type="table" tableValues="1 1"/></feComponentTransfer>
+</filter>
+<rect width="420" height="420" filter="url(#brushed)" opacity="0.26"/>
+</svg>

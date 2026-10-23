@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420">
+<!-- Milky condensation: low-frequency fog patches in cold white-blue.
+     Stretched over the window so it pools unevenly like real breath-fog. -->
+<filter id="fog" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="4" seed="23"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.86  0 0 0 0 0.9  0 0 0 0 1  0.16 0.1 0 0 0.01"/>
+</filter>
+<rect width="420" height="420" filter="url(#fog)"/>
+</svg>

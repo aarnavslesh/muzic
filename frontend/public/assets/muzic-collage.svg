@@ -1,0 +1,214 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" width="1440" height="900" role="img" aria-label="Muzic punk poster collage">
+  <defs>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch" />
+      <feColorMatrix type="saturate" values="0" />
+    </filter>
+    <filter id="soften" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" />
+    </filter>
+    <radialGradient id="burst" cx="50%" cy="42%" r="62%">
+      <stop offset="0%" stop-color="#ff2a2a" stop-opacity="0.55" />
+      <stop offset="55%" stop-color="#a81010" stop-opacity="0.32" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="portrait" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="redField" x="0" y="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9c2320" />
+      <stop offset="55%" stop-color="#8b1e1e" />
+      <stop offset="100%" stop-color="#6d1616" />
+    </linearGradient>
+    <linearGradient id="paper" x="0" y="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f3ebda" />
+      <stop offset="100%" stop-color="#e2d7c1" />
+    </linearGradient>
+    <clipPath id="clipRed"><rect x="0" y="0" width="540" height="900" /></clipPath>
+  </defs>
+
+  <!-- ── left field: solid dark red ── -->
+  <rect x="0" y="0" width="540" height="900" fill="url(#redField)" />
+  <g clip-path="url(#clipRed)" opacity="0.16">
+    <ellipse cx="120" cy="250" rx="260" ry="220" fill="#e04a3a" filter="url(#soften)" />
+    <ellipse cx="430" cy="720" rx="240" ry="220" fill="#3a0a0a" filter="url(#soften)" />
+  </g>
+
+  <!-- ── poster collage ── -->
+
+  <!-- 1. vinyl records -->
+  <g>
+    <rect x="548" y="0" width="232" height="232" fill="#0a0a0a" />
+    <g opacity="0.95">
+      <circle cx="622" cy="88" r="54" fill="#a51818" />
+      <circle cx="622" cy="88" r="46" fill="none" stroke="#d8342c" stroke-width="1" opacity="0.5" />
+      <circle cx="622" cy="88" r="34" fill="none" stroke="#d8342c" stroke-width="1" opacity="0.35" />
+      <circle cx="622" cy="88" r="20" fill="none" stroke="#d8342c" stroke-width="1" opacity="0.3" />
+      <circle cx="622" cy="88" r="3.5" fill="#0a0a0a" />
+      <circle cx="704" cy="126" r="46" fill="#8d1414" />
+      <circle cx="704" cy="126" r="38" fill="none" stroke="#c93028" stroke-width="1" opacity="0.45" />
+      <circle cx="704" cy="126" r="24" fill="none" stroke="#c93028" stroke-width="1" opacity="0.3" />
+      <circle cx="704" cy="126" r="3" fill="#0a0a0a" />
+    </g>
+    <text x="562" y="214" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#f4f1ea" letter-spacing="0.02em">my life is MUSIC</text>
+  </g>
+
+  <!-- 2. "it is all a part of the process" -->
+  <g>
+    <rect x="786" y="0" width="210" height="210" fill="#0a0a0a" />
+    <text x="802" y="66" font-family="'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive" font-size="31" fill="#e02b24">It is all a</text>
+    <text x="802" y="112" font-family="'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive" font-size="31" fill="#e02b24">part of the</text>
+    <text x="802" y="158" font-family="'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive" font-size="31" fill="#e02b24">process</text>
+    <rect x="802" y="176" width="92" height="3" fill="#e02b24" opacity="0.75" />
+  </g>
+
+  <!-- 3. partial header strip -->
+  <g>
+    <rect x="1002" y="0" width="142" height="44" fill="#0a0a0a" />
+    <rect x="1002" y="0" width="142" height="7" fill="#c0201f" />
+    <text x="1012" y="34" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="22" fill="#f2efe8" letter-spacing="0.06em">BREAK THE</text>
+  </g>
+
+  <!-- 4. porsche / martini plate -->
+  <g>
+    <rect x="1002" y="52" width="140" height="78" rx="6" fill="#2a0c0c" stroke="#c9b48a" stroke-width="3" />
+    <text x="1072" y="88" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="26" fill="#f0e6cf" letter-spacing="0.1em">PORSCHE</text>
+    <text x="1072" y="112" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#d9c9a3" letter-spacing="0.14em">MARTINI RACING</text>
+  </g>
+
+  <!-- 5. art is you -->
+  <g>
+    <rect x="1150" y="0" width="290" height="210" fill="#0a0a0a" />
+    <ellipse cx="1260" cy="112" rx="92" ry="86" fill="url(#portrait)" />
+    <circle cx="1268" cy="86" r="26" fill="#2b2b2b" opacity="0.75" />
+    <path d="M1230 196c4-40 20-58 38-58s34 18 38 58z" fill="#2b2b2b" opacity="0.7" />
+    <text x="1172" y="86" font-family="'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive" font-size="72" fill="#f5f2ec">art</text>
+    <text x="1186" y="126" font-family="'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive" font-size="34" fill="#f5f2ec">is</text>
+    <text x="1172" y="186" font-family="'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive" font-size="62" fill="#f5f2ec">you.</text>
+    <rect x="1356" y="160" width="74" height="32" fill="none" stroke="#f5f2ec" stroke-width="2" />
+    <text x="1393" y="182" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="800" fill="#f5f2ec" letter-spacing="0.08em">ART IS US.</text>
+  </g>
+
+  <!-- 6. rebirth -->
+  <g>
+    <rect x="548" y="240" width="240" height="240" fill="#f2efe7" />
+    <path d="M664 268c14 26 10 52-2 74-9 17-6 34 6 48-26-6-40-24-40-44 0 22-14 42-38 52 12-16 12-34 2-52-10-19-12-46 2-78 4 22 16 36 34 40-2-16 4-30 18-40 6 14 12 24 18 30z" fill="#141414" />
+    <text x="668" y="372" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="52" fill="#c81f1c" letter-spacing="0.02em">rebirth</text>
+    <text x="670" y="374" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="52" fill="#3ad7e0" opacity="0.45" letter-spacing="0.02em">rebirth</text>
+    <text x="666" y="370" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="52" fill="#c81f1c" letter-spacing="0.02em">rebirth</text>
+  </g>
+
+  <!-- 7. overthinking -->
+  <g>
+    <rect x="796" y="228" width="350" height="262" fill="#08080a" />
+    <rect x="796" y="228" width="350" height="262" fill="url(#burst)" />
+    <g opacity="0.92" transform="translate(972 300) rotate(18)">
+      <circle cx="0" cy="-52" r="13" fill="#08080a" />
+      <path d="M-14 -40c8-8 22-8 28 2l10 34-16 6-4 44-16 2 4-48-16-6z" fill="#08080a" />
+      <path d="M-2 6l-14 52 14 4 14-50z" fill="#08080a" />
+      <path d="M-24 62l-6 26 12 2 8-24z" fill="#08080a" />
+    </g>
+    <text x="971" y="470" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="38" fill="#e01d18" textLength="330" lengthAdjust="spacingAndGlyphs">OVERTHINKING</text>
+  </g>
+
+  <!-- 8. keep fashion weird -->
+  <g>
+    <rect x="1154" y="222" width="286" height="120" fill="#0a0a0a" />
+    <text x="1166" y="268" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="34" fill="#c6201d" letter-spacing="0.04em" textLength="262" lengthAdjust="spacingAndGlyphs">KEEP FASHION</text>
+    <text x="1166" y="316" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="34" fill="#c6201d" letter-spacing="0.04em" textLength="262" lengthAdjust="spacingAndGlyphs">WEIRD</text>
+    <g stroke="#0a0a0a" stroke-width="3" opacity="0.75">
+      <path d="M1180 250l60 16" /><path d="M1240 288l70 -10" /><path d="M1300 240l40 22" />
+    </g>
+  </g>
+
+  <!-- 9. small orange sticker -->
+  <g>
+    <rect x="1378" y="8" width="54" height="54" rx="4" fill="#e2621c" />
+    <path d="M1392 35h26M1405 22v26" stroke="#141414" stroke-width="6" stroke-linecap="square" />
+  </g>
+
+  <!-- 10. small black/red poster under the sticker -->
+  <g>
+    <rect x="1154" y="350" width="126" height="132" fill="#0a0a0a" />
+    <rect x="1154" y="350" width="126" height="10" fill="#c0201f" />
+    <text x="1217" y="402" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="26" fill="#f1eee7" textLength="108" lengthAdjust="spacingAndGlyphs">REBEL</text>
+    <text x="1217" y="436" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="26" fill="#c0201f" textLength="108" lengthAdjust="spacingAndGlyphs">REBEL</text>
+    <circle cx="1217" cy="462" r="12" fill="none" stroke="#f1eee7" stroke-width="2" />
+  </g>
+
+  <!-- 11. hands reaching across the red field edge -->
+  <g opacity="0.97">
+    <path d="M446 384c18-16 44-16 60 2l14 16 4-30c1-9 12-10 14-2l4 30 6-36c1-9 13-9 14 0l2 36 8-30c2-8 13-6 13 2l-4 40c-3 30-20 48-48 54-26 6-56-2-74-22l-14-16c-8-9-7-21 1-29z" fill="#d9a184" />
+    <path d="M700 396c-18-16-44-16-60 2l-14 16-4-30c-1-9-12-10-14-2l-4 30-6-36c-1-9-13-9-14 0l-2 36-8-30c-2-8-13-6-13 2l4 40c3 30 20 48 48 54 26 6 56-2 74-22l14-16c8-9 7-21-1-29z" fill="#c98d70" />
+    <path d="M446 384c18-16 44-16 60 2" fill="none" stroke="#a96b51" stroke-width="2" opacity="0.5" />
+  </g>
+
+  <!-- 12. all red -->
+  <g>
+    <rect x="548" y="492" width="240" height="260" fill="#0a0a0a" />
+    <text x="560" y="530" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="24" fill="#c6201d" letter-spacing="0.02em">ALL RED</text>
+    <text x="560" y="566" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="20" fill="#c6201d">I STAY WITH</text>
+    <text x="560" y="598" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="20" fill="#c6201d">THE FIVESV</text>
+    <text x="560" y="630" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="24" fill="#c6201d">ALL RED</text>
+    <text x="676" y="530" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="24" fill="#c6201d">ALL RED</text>
+    <rect x="674" y="548" width="104" height="44" fill="none" stroke="#f1eee7" stroke-width="2" />
+    <text x="726" y="568" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" font-weight="800" fill="#f1eee7">EXPLICIT</text>
+    <text x="726" y="582" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" font-weight="800" fill="#f1eee7">CONTENT</text>
+    <text x="676" y="614" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="9" font-weight="700" fill="#f1eee7">PARENTAL ADVISORY</text>
+    <text x="676" y="634" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="9" font-weight="700" fill="#c6201d">PROD. MUZIC RED</text>
+  </g>
+
+  <!-- 13. chill -->
+  <g>
+    <rect x="796" y="492" width="140" height="408" fill="url(#paper)" />
+    <g font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="86" fill="#c0201f" text-anchor="middle">
+      <text x="866" y="576" transform="rotate(-7 866 576)">C</text>
+      <text x="866" y="662" transform="rotate(5 866 662)">H</text>
+      <text x="866" y="748" transform="rotate(-4 866 748)">I</text>
+      <text x="866" y="834" transform="rotate(6 866 834)">L</text>
+      <text x="866" y="892" transform="rotate(-3 866 892)">L</text>
+    </g>
+  </g>
+
+  <!-- 14. music is my drug -->
+  <g>
+    <rect x="944" y="492" width="240" height="408" fill="url(#paper)" />
+    <path d="M1064 700l16 34 37 5-27 26 7 37-33-18-32 18 6-37-27-26 37-5z" fill="#ffffff" opacity="0.55" />
+    <g font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" fill="#121212" text-anchor="middle">
+      <text x="1064" y="606" font-size="58" textLength="212" lengthAdjust="spacingAndGlyphs">MUSIC</text>
+      <text x="1064" y="676" font-size="52" textLength="196" lengthAdjust="spacingAndGlyphs">IS MY</text>
+      <text x="1064" y="746" font-size="58" textLength="200" lengthAdjust="spacingAndGlyphs">DRUG</text>
+    </g>
+    <path d="M1064 700l16 34 37 5-27 26 7 37-33-18-32 18 6-37-27-26 37-5z" fill="#ffffff" opacity="0.4" />
+  </g>
+
+  <!-- 15. right column filler -->
+  <g>
+    <rect x="1192" y="490" width="248" height="410" fill="#0a0a0a" />
+    <g opacity="0.85">
+      <circle cx="1316" cy="640" r="104" fill="none" stroke="#c0201f" stroke-width="3" opacity="0.55" />
+      <circle cx="1316" cy="640" r="78" fill="none" stroke="#c0201f" stroke-width="2" opacity="0.4" />
+      <circle cx="1316" cy="640" r="52" fill="none" stroke="#c0201f" stroke-width="2" opacity="0.3" />
+      <circle cx="1316" cy="640" r="6" fill="#c0201f" />
+    </g>
+    <text x="1316" y="800" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="44" fill="#f1eee7" textLength="200" lengthAdjust="spacingAndGlyphs">RED NOISE</text>
+    <text x="1316" y="838" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#c6201d" letter-spacing="0.24em">MUZIC TRANSIT</text>
+  </g>
+
+  <!-- 16. small strip under the all-red poster -->
+  <g>
+    <rect x="548" y="762" width="240" height="138" fill="#121212" />
+    <g fill="#c0201f">
+      <rect x="562" y="776" width="8" height="34" /><rect x="578" y="776" width="4" height="34" />
+      <rect x="590" y="776" width="12" height="34" /><rect x="610" y="776" width="5" height="34" />
+      <rect x="623" y="776" width="9" height="34" /><rect x="640" y="776" width="4" height="34" />
+    </g>
+    <text x="562" y="852" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="30" fill="#f1eee7" letter-spacing="0.04em">SIDE B</text>
+    <text x="562" y="878" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#c6201d" letter-spacing="0.2em">DOUBLE LP · 33 RPM</text>
+  </g>
+
+  <!-- grain + vignette -->
+  <rect x="0" y="0" width="1440" height="900" filter="url(#grain)" opacity="0.09" />
+  <rect x="0" y="0" width="1440" height="900" fill="none" stroke="#000" stroke-width="60" opacity="0.18" />
+</svg>

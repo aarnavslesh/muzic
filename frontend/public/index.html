@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Muzic</title>
     <link rel="stylesheet" href="/styles.css" />
+    <noscript><style>
+      /* Without JS nothing drives the scrub, so show the open doorway */
+      .subway-door-left { transform: translate3d(-102%, 0, 0); }
+      .subway-door-right { transform: translate3d(102%, 0, 0); }
+    </style></noscript>
   </head>
   <body>
     <canvas id="dottedSurface" class="dotted-surface" aria-hidden="true"></canvas>
@@ -22,16 +27,43 @@
 
         <div class="auth-radial" aria-hidden="true"></div>
 
-        <!-- Scroll-locked album hero: wheel/touch scrubs through album photos.
-             Ported from the "scroll-locked video hero" component by Guglielmo
-             Giannattasio (guglielmogiannattasio.it), adapted to plain JS with an
-             album-photo sequence instead of a video. -->
+        <!-- Scroll-locked hero: the page opens on closed subway doors with the
+             Welcome to Muzic headline over them; scrolling slides the doors
+             apart and then flies the camera forward through the doorway,
+             landing on the poster-collage wall with the login/signup card.
+             Wheel/touch input scrubs that single timeline. -->
         <div class="album-hero" id="albumHero">
-          <div class="album-hero-frames" id="albumHeroFrames" aria-hidden="true"></div>
-          <div class="album-hero-overlay" aria-hidden="true"></div>
-          <h1 class="album-hero-title" id="authHeadline">Welcome to Muzic, the future of music.</h1>
+          <div class="album-hero-backdrop" id="albumHeroBackdrop" aria-hidden="true"></div>
+          <div class="album-hero-overlay" id="albumHeroOverlay" aria-hidden="true"></div>
+          <div class="album-hero-streaks" id="albumHeroStreaks" aria-hidden="true"></div>
+
+          <div class="subway-scene" aria-hidden="true">
+            <div class="subway-glow" id="subwayGlow"></div>
+            <div class="subway-door subway-door-left" id="subwayDoorLeft">
+              <span class="door-sign-strip">Please stand clear of the doors</span>
+              <div class="door-window"><span class="door-rain"></span></div>
+              <span class="door-handle"></span>
+              <span class="door-seam"></span>
+            </div>
+            <div class="subway-door subway-door-right" id="subwayDoorRight">
+              <span class="door-sign-strip">Muzic Transit · Car 07 · Line M</span>
+              <span class="door-emergency-badge">SOS</span>
+              <div class="door-window"><span class="door-rain"></span></div>
+              <span class="door-handle"></span>
+              <span class="door-seam"></span>
+            </div>
+            <div class="subway-jamb subway-jamb-left"></div>
+            <div class="subway-jamb subway-jamb-right"></div>
+            <div class="subway-lintel"></div>
+            <div class="subway-sill"></div>
+          </div>
+
+          <h1 class="album-hero-title" id="authHeadline">
+            <span class="album-hero-title-main">Welcome to Muzic</span>
+            <span class="album-hero-title-sub">the future of music</span>
+          </h1>
           <div class="album-hero-hint" id="albumHeroHint" aria-hidden="true">
-            <span>SCROLL</span>
+            <span>SCROLL TO OPEN</span>
             <svg width="14" height="18" viewBox="0 0 14 18"><path d="M7 1 L7 17 M2 12 L7 17 L12 12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </div>
           <div class="album-hero-progress" aria-hidden="true"><span id="albumHeroProgress"></span></div>
@@ -91,48 +123,88 @@
             <p class="eyebrow">Muzic</p>
             <h2 id="welcomeTitle">Your library</h2>
           </div>
+          <div class="topbar-search hidden" id="topbarSearch">
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input id="librarySearch" type="search" placeholder="Search songs, artists, albums" aria-label="Search your library" autocomplete="off" />
+          </div>
           <button id="logoutButton" class="ghost">Logout</button>
         </header>
 
-        <section class="player-band">
-          <div class="music-player-card">
+        <section class="player-band" id="playerBand">
+          <div class="music-player-card" id="musicPlayerCard">
             <audio id="audioPlayer" preload="metadata"></audio>
-            <div class="album-art-wrap" id="albumArtWrap">
-              <img
-                id="albumArt"
-                src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&auto=format&fit=crop&q=80"
-                alt="Album art"
-              />
+            <div
+              class="player-disc-mask"
+              id="albumArtWrap"
+              role="button"
+              tabindex="0"
+              aria-label="Album art, click to expand"
+              title="Click to expand"
+            >
+              <div class="player-disc" id="playerDisc"></div>
+              <div class="player-disc-hole" aria-hidden="true"><span class="player-disc-spindle"></span></div>
             </div>
-            <div class="song-copy">
-              <p class="eyebrow">Now playing</p>
-              <h3 id="nowPlayingTitle">Choose a song</h3>
-              <p id="nowPlayingArtist">No listening session is active.</p>
+            <div class="player-info">
+              <div class="player-scales" aria-hidden="true">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                  <defs>
+                    <mask id="playerScalesMask" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+                      <rect width="10" height="10" fill="#fff" />
+                    </mask>
+                  </defs>
+                  <g id="playerScalesGrid"></g>
+                </svg>
+              </div>
+              <div class="player-track-info" id="playerTrackInfo">
+                <div class="ti-layer">
+                  <p class="player-artist" id="nowPlayingArtist">No listening session is active.</p>
+                  <h3 class="player-title" id="nowPlayingTitle">Choose a song</h3>
+                </div>
+              </div>
+              <div class="player-progress">
+                <div
+                  class="player-bar"
+                  id="progressBar"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Seek"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow="0"
+                  aria-valuetext="00:00 of 00:00"
+                >
+                  <span class="player-bar-fill" id="playerBarFill"></span>
+                </div>
+                <div class="player-time">
+                  <span id="currentTimeLabel">00:00</span>
+                  <span class="player-time-sep">/</span>
+                  <span id="durationLabel">00:00</span>
+                </div>
+              </div>
+              <div class="player-controls" aria-label="Music controls">
+                <button id="shuffleButton" class="player-ctrl" type="button" title="Shuffle" aria-label="Shuffle" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/><path d="M16 21h5v-5"/><path d="M21 21l-7-7"/><path d="M3 3l7 7"/></svg>
+                </button>
+                <button id="previousButton" class="player-ctrl" type="button" title="Previous" aria-label="Previous">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M19 5L8 12l11 7z"/><path d="M5 5h2v14H5z"/></svg>
+                </button>
+                <button id="playPauseButton" class="player-ctrl player-ctrl-play" type="button" title="Play" aria-label="Play">
+                  <svg id="playIcon" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M7 5v14l11-7z"/></svg>
+                  <svg id="pauseIcon" class="hidden" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M6 5h3v14H6z"/><path d="M15 5h3v14h-3z"/></svg>
+                </button>
+                <button id="nextButton" class="player-ctrl" type="button" title="Next" aria-label="Next">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M5 5l11 7L5 19z"/><path d="M17 5h2v14h-2z"/></svg>
+                </button>
+                <button id="repeatButton" class="player-ctrl player-ctrl-loop" type="button" title="Repeat off" aria-label="Repeat off">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12V8a2 2 0 0 1 2-2h12"/><path d="M16 3l4 3l-4 3"/><path d="M20 12v4a2 2 0 0 1-2 2H6"/><path d="M8 21l-4-3l4-3"/></svg>
+                  <span class="loop-one" aria-hidden="true">1</span>
+                </button>
+              </div>
             </div>
             <p id="playerStatus" class="player-status">Upload a local audio file or use a direct audio URL for in-app playback.</p>
-            <div class="player-progress">
-              <span id="currentTimeLabel">00:00</span>
-              <input id="progressBar" class="progress-bar" type="range" min="0" max="100" value="0" />
-              <span id="durationLabel">00:00</span>
-            </div>
-            <div class="player-controls" aria-label="Music controls">
-              <button id="shuffleButton" class="icon-button muted" type="button" title="Shuffle" aria-label="Shuffle">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20l5.5-5.5"/><path d="M15 4l6 6"/><path d="M21 16v5h-5"/><path d="M15 20l6-6"/><path d="M4 4l17 17"/></svg>
-              </button>
-              <button id="previousButton" class="icon-button" type="button" title="Previous" aria-label="Previous">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 20L9 12l10-8v16Z"/><path d="M5 19V5"/></svg>
-              </button>
-              <button id="playPauseButton" class="play-button" type="button" title="Play" aria-label="Play">
-                <svg id="playIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7-11-7Z"/></svg>
-                <svg id="pauseIcon" class="hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8z"/><path d="M13 5h3v14h-3z"/></svg>
-              </button>
-              <button id="nextButton" class="icon-button" type="button" title="Next" aria-label="Next">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4l10 8-10 8V4Z"/><path d="M19 5v14"/></svg>
-              </button>
-              <button id="repeatButton" class="icon-button muted" type="button" title="Repeat" aria-label="Repeat">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-              </button>
-            </div>
           </div>
           <div id="externalPlayer" class="external-player hidden">
             <iframe id="externalFrame" title="External music player" allow="autoplay; encrypted-media"></iframe>
@@ -146,7 +218,7 @@
           </div>
         </section>
 
-        <section class="grid">
+        <section class="grid" id="libraryGrid">
           <form id="trackForm" class="panel">
             <h3>Add music</h3>
             <div class="segmented">
@@ -198,7 +270,7 @@
           </section>
         </section>
 
-        <section class="stats-grid">
+        <section class="stats-grid" id="statsGrid">
           <article class="panel stat-card">
             <p class="eyebrow">Playing time</p>
             <strong id="totalTime">0s</strong>
@@ -213,7 +285,7 @@
           </article>
         </section>
 
-        <section class="panel engine-panel">
+        <section class="panel engine-panel" id="enginePanel">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Recommendation engine</p>
@@ -241,7 +313,7 @@
           </div>
         </section>
 
-        <section class="panel recommendations-panel">
+        <section class="panel recommendations-panel" id="recommendationsPanel">
           <div class="section-heading">
             <div>
               <p class="eyebrow">For you</p>
@@ -251,6 +323,102 @@
           </div>
           <div id="recommendationList" class="recommendation-list"></div>
         </section>
+
+        <!-- Dock-driven views: the dock swaps between the home dashboard,
+             playlists, favourites and the profile panel. -->
+
+        <section class="panel view-panel hidden" id="playlistsView" aria-labelledby="playlistsViewTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Your collection</p>
+              <h3 id="playlistsViewTitle">Playlists</h3>
+            </div>
+            <button id="refreshPlaylistsButton" class="ghost" type="button">Refresh</button>
+          </div>
+          <form id="playlistForm" class="playlist-create">
+            <label>
+              New playlist
+              <input name="name" placeholder="Late night drives" maxlength="60" required />
+            </label>
+            <button class="primary" type="submit">Create</button>
+          </form>
+          <p id="playlistMessage" class="message"></p>
+          <div id="playlistList" class="playlist-list"></div>
+        </section>
+
+        <section class="panel view-panel hidden" id="favouritesView" aria-labelledby="favouritesViewTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Saved on this device</p>
+              <h3 id="favouritesViewTitle">Favourites</h3>
+            </div>
+          </div>
+          <p id="favouritesMessage" class="message"></p>
+          <div id="favouritesList" class="track-list"></div>
+        </section>
+
+        <section class="panel view-panel hidden" id="profileView" aria-labelledby="profileViewTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Account</p>
+              <h3 id="profileViewTitle">Profile</h3>
+            </div>
+          </div>
+          <dl class="profile-facts" id="profileFacts"></dl>
+          <div class="profile-actions">
+            <button id="profileLogoutButton" class="ghost" type="button">Log out</button>
+          </div>
+        </section>
+
+        <!-- Primary navigation dock -->
+        <nav class="dock" id="appDock" aria-label="Primary">
+          <div class="dock-inner">
+            <button class="dock-item" type="button" data-dock="profile" aria-label="Profile">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span class="dock-tip">Profile</span>
+            </button>
+            <button class="dock-item" type="button" data-dock="playlists" aria-label="Playlists">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15V6" />
+                <path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+                <path d="M12 12H3" />
+                <path d="M16 6H3" />
+                <path d="M12 18H3" />
+              </svg>
+              <span class="dock-tip">Playlists</span>
+            </button>
+            <button class="dock-item" type="button" data-dock="favourites" aria-label="Favourites">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span class="dock-tip">Favourites</span>
+            </button>
+            <button class="dock-item dock-item-accent" type="button" data-dock="add" aria-label="Add music">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14" />
+                <path d="M12 5v14" />
+              </svg>
+              <span class="dock-tip">Add music</span>
+            </button>
+            <button class="dock-item" type="button" data-dock="search" aria-label="Search">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <span class="dock-tip">Search</span>
+            </button>
+            <button class="dock-item" type="button" data-dock="home" aria-label="Home">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              <span class="dock-tip">Home</span>
+            </button>
+          </div>
+        </nav>
       </section>
     </main>
     <script src="/app.js"></script>
